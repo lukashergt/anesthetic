@@ -1,8 +1,17 @@
 """Tools for reading from getdist chains files."""
+import sys
+import os
+import warnings
 import numpy
 import glob
 from anesthetic.read.chainreader import ChainReader
-
+try:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        import getdist
+        from getdist import loadMCSamples
+except ImportError:
+    print('getdist not imported')
 
 class GetDistReader(ChainReader):
     """Read getdist files."""
@@ -22,40 +31,60 @@ class GetDistReader(ChainReader):
         a2     a_2
         omega  \omega
         """
-        try:
-            with open(self.paramnames_file, 'r') as f:
-                paramnames = []
-                tex = {}
-                for line in f:
-                    line = line.strip().split()
-                    paramname = line[0].replace('*', '')
-                    paramnames.append(paramname)
-                    if len(line) > 1:
-                        tex[paramname] = '$' + ' '.join(line[1:]) + '$'
-                return paramnames, tex
-        except IOError:
-            return super(GetDistReader, self).paramnames()
+        print('getdist')
+        if 'getdist' in sys.modules:
+            print('cobaya')
+            raw_dir, root_name = os.path.split(self.root)
+            chain_dir, _ = os.path.split(raw_dir)
+            print(chain_dir)
+            print(root_name)
+            s = loadMCSamples(file_root=chain_dir + '/' + root_name)
+            paramnames = [i.name for i in s.paramNames.names]
+            tex = {i.name: '$' + i.label + '$' for i in s.paramNames.names}
+            return paramnames, tex
+        else:
+            try:
+                with open(self.paramnames_file, 'r') as f:
+                    paramnames = []
+                    tex = {}
+                    for line in f:
+                        line = line.strip().split()
+                        paramname = line[0].replace('*', '')
+                        paramnames.append(paramname)
+                        if len(line) > 1:
+                            tex[paramname] = '$' + ' '.join(line[1:]) + '$'
+                    return paramnames, tex
+            except IOError:
+                return super(GetDistReader, self).paramnames()
 
     def limits(self):
         """Read <root>.ranges in getdist format."""
-        try:
-            with open(self.ranges_file, 'r') as f:
-                limits = {}
-                for line in f:
-                    line = line.strip().split()
-                    paramname = line[0]
-                    try:
-                        xmin = float(line[1])
-                    except ValueError:
-                        xmin = None
-                    try:
-                        xmax = float(line[2])
-                    except ValueError:
-                        xmax = None
-                    limits[paramname] = (xmin, xmax)
-                return limits
-        except IOError:
-            return super(GetDistReader, self).limits()
+        if 'getdist' in sys.modules:
+            raw_dir, root_name = os.path.split(self.root)
+            chain_dir, _ = os.path.split(raw_dir)
+            s = loadMCSamples(file_root=chain_dir + '/' + root_name)
+            limits = {i: (s.ranges.getLower(i), s.ranges.getUpper(i))
+                      for i in s.ranges.names}
+            return limits
+        else:
+            try:
+                with open(self.ranges_file, 'r') as f:
+                    limits = {}
+                    for line in f:
+                        line = line.strip().split()
+                        paramname = line[0]
+                        try:
+                            xmin = float(line[1])
+                        except ValueError:
+                            xmin = None
+                        try:
+                            xmax = float(line[2])
+                        except ValueError:
+                            xmax = None
+                        limits[paramname] = (xmin, xmax)
+                    return limits
+            except IOError:
+                return super(GetDistReader, self).limits()
 
     def samples(self):
         """Read <root>_1.txt in getdist format."""
