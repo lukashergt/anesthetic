@@ -31,16 +31,14 @@ class GetDistReader(ChainReader):
         a2     a_2
         omega  \omega
         """
-        print('getdist')
         if 'getdist' in sys.modules:
-            print('cobaya')
             raw_dir, root_name = os.path.split(self.root)
             chain_dir, _ = os.path.split(raw_dir)
-            print(chain_dir)
-            print(root_name)
             s = loadMCSamples(file_root=chain_dir + '/' + root_name)
             paramnames = [i.name for i in s.paramNames.names]
-            tex = {i.name: '$' + i.label + '$' for i in s.paramNames.names}
+            paramnames.remove('minuslogprior__0')
+            paramnames.remove('minuslogprior__SZ')
+            tex = {i.name: '$' + i.label + '$' for i in s.paramNames.names if i in paramnames}
             return paramnames, tex
         else:
             try:
@@ -63,8 +61,11 @@ class GetDistReader(ChainReader):
             raw_dir, root_name = os.path.split(self.root)
             chain_dir, _ = os.path.split(raw_dir)
             s = loadMCSamples(file_root=chain_dir + '/' + root_name)
+            paramnames = [i.name for i in s.paramNames.names]
+            paramnames.remove('minuslogprior__0')
+            paramnames.remove('minuslogprior__SZ')
             limits = {i: (s.ranges.getLower(i), s.ranges.getUpper(i))
-                      for i in s.ranges.names}
+                      for i in s.ranges.names if i in paramnames}
             return limits
         else:
             try:
