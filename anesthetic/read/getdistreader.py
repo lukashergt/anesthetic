@@ -41,6 +41,9 @@ class GetDistReader(ChainReader):
             s = loadMCSamples(file_root=chain_dir + '/' + root_name)
             paramnames = [i.name for i in s.paramNames.names]
             tex = {i.name: '$' + i.label + '$' for i in s.paramNames.names}
+            paramnames = paramnames[:-2]
+            print(numpy.shape(paramnames))
+            print(paramnames)
             return paramnames, tex
         else:
             try:

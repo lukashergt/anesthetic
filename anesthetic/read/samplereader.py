@@ -14,6 +14,7 @@ def SampleReader(root):
 
     pc = PolyChordReader(root)
     if os.path.isfile(pc.birth_file):
+        print("PC")
         return pc
 
     gd = GetDistReader(root)
