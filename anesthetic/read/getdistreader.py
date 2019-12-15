@@ -32,60 +32,63 @@ class GetDistReader(ChainReader):
         omega  \omega
         """
         if 'getdist' in sys.modules:
-            raw_dir, root_name = os.path.split(self.root)
-            chain_dir, _ = os.path.split(raw_dir)
-            s = loadMCSamples(file_root=chain_dir + '/' + root_name)
-            paramnames = [i.name for i in s.paramNames.names]
-            paramnames.remove('minuslogprior__0')
-            paramnames.remove('minuslogprior__SZ')
-            tex = {i.name: '$' + i.label + '$' for i in s.paramNames.names if i in paramnames}
-            return paramnames, tex
-        else:
             try:
-                with open(self.paramnames_file, 'r') as f:
-                    paramnames = []
-                    tex = {}
-                    for line in f:
-                        line = line.strip().split()
-                        paramname = line[0].replace('*', '')
-                        paramnames.append(paramname)
-                        if len(line) > 1:
-                            tex[paramname] = '$' + ' '.join(line[1:]) + '$'
-                    return paramnames, tex
-            except IOError:
-                return super(GetDistReader, self).paramnames()
+                raw_dir, root_name = os.path.split(self.root)
+                chain_dir, _ = os.path.split(raw_dir)
+                s = loadMCSamples(file_root=chain_dir + '/' + root_name)
+                paramnames = [i.name for i in s.paramNames.names]
+                paramnames.remove('minuslogprior__0')
+                paramnames.remove('minuslogprior__SZ')
+                tex = {i.name: '$' + i.label + '$' for i in s.paramNames.names if i in paramnames}
+                return paramnames, tex
+            except:
+                try:
+                    with open(self.paramnames_file, 'r') as f:
+                        paramnames = []
+                        tex = {}
+                        for line in f:
+                            line = line.strip().split()
+                            paramname = line[0].replace('*', '')
+                            paramnames.append(paramname)
+                            if len(line) > 1:
+                                tex[paramname] = '$' + ' '.join(line[1:]) + '$'
+                        return paramnames, tex
+                except IOError:
+                    return super(GetDistReader, self).paramnames()
 
     def limits(self):
         """Read <root>.ranges in getdist format."""
+
         if 'getdist' in sys.modules:
-            raw_dir, root_name = os.path.split(self.root)
-            chain_dir, _ = os.path.split(raw_dir)
-            s = loadMCSamples(file_root=chain_dir + '/' + root_name)
-            paramnames = [i.name for i in s.paramNames.names]
-            paramnames.remove('minuslogprior__0')
-            paramnames.remove('minuslogprior__SZ')
-            limits = {i: (s.ranges.getLower(i), s.ranges.getUpper(i))
-                      for i in s.ranges.names if i in paramnames}
-            return limits
-        else:
             try:
-                with open(self.ranges_file, 'r') as f:
-                    limits = {}
-                    for line in f:
-                        line = line.strip().split()
-                        paramname = line[0]
-                        try:
-                            xmin = float(line[1])
-                        except ValueError:
-                            xmin = None
-                        try:
-                            xmax = float(line[2])
-                        except ValueError:
-                            xmax = None
-                        limits[paramname] = (xmin, xmax)
-                    return limits
-            except IOError:
-                return super(GetDistReader, self).limits()
+                raw_dir, root_name = os.path.split(self.root)
+                chain_dir, _ = os.path.split(raw_dir)
+                s = loadMCSamples(file_root=chain_dir + '/' + root_name)
+                paramnames = [i.name for i in s.paramNames.names]
+                paramnames.remove('minuslogprior__0')
+                paramnames.remove('minuslogprior__SZ')
+                limits = {i: (s.ranges.getLower(i), s.ranges.getUpper(i))
+                          for i in s.ranges.names if i in paramnames}
+                return limits
+            except:
+                try:
+                    with open(self.ranges_file, 'r') as f:
+                        limits = {}
+                        for line in f:
+                            line = line.strip().split()
+                            paramname = line[0]
+                            try:
+                                xmin = float(line[1])
+                            except ValueError:
+                                xmin = None
+                            try:
+                                xmax = float(line[2])
+                            except ValueError:
+                                xmax = None
+                            limits[paramname] = (xmin, xmax)
+                        return limits
+                except IOError:
+                    return super(GetDistReader, self).limits()
 
     def samples(self):
         """Read <root>_1.txt in getdist format."""

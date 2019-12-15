@@ -480,7 +480,9 @@ class NestedSamples(MCMCSamples):
              - logZ).T
 
         D = numpy.exp(logsumexp(logw, b=S, axis=1))
-        d = numpy.exp(logsumexp(logw, b=(S.T-D).T**2, axis=1))*2
+        STDT = (S.T - D).T
+        STDT2 = numpy.where(numpy.abs(STDT) > 1e150, 1e300, STDT ** 2)
+        d = numpy.exp(logsumexp(logw, b=STDT2, axis=1)) * 2
 
         samples = numpy.vstack((logZ, D, d)).T
         params = ['logZ', 'D', 'd']
