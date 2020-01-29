@@ -31,19 +31,31 @@ class GetDistReader(ChainReader):
         a2     a_2
         omega  \omega
         """
-        print('getdist')
-        if 'getdist' in sys.modules:
-            print('cobaya')
+        if os.path.isfile(self.yaml_file):
+            with open(self.root + ".1.txt") as f:
+                header = f.readline()[1:]
+            paramnames = header.split()[2:]
+            s = loadMCSamples(file_root=self.root)
+            tex = {i.name: '$' + i.label + '$' for i in s.paramNames.names}
+            return paramnames, tex
+        elif os.path.split(os.path.split(self.root)[0])[-1] == 'raw_polychord_output':
             raw_dir, root_name = os.path.split(self.root)
             chain_dir, _ = os.path.split(raw_dir)
-            print(chain_dir)
-            print(root_name)
+
+            with open(chain_dir + '/' + root_name + ".1.txt") as f:
+                header = f.readline()[1:]
+            paramnames_long = header.split()
+            paramnames_long.remove('minuslogprior')
+            paramnames_long.remove('chi2')
+            paramnames = [p + '/-2' if 'chi2' in p and 'CMB' not in p else p
+                          for p in paramnames_long][2:]
+
             s = loadMCSamples(file_root=chain_dir + '/' + root_name)
-            paramnames = [i.name for i in s.paramNames.names]
+            # tex = {i.name: '$' + i.label + '$' for i in s.paramNames.names
+            #        if i.name in paramnames}
+            # paramnames = [i.name for i in s.paramNames.names]
             tex = {i.name: '$' + i.label + '$' for i in s.paramNames.names}
-            paramnames = paramnames[:-2]
-            print(numpy.shape(paramnames))
-            print(paramnames)
+            # paramnames = paramnames[:-2]
             return paramnames, tex
         else:
             try:
@@ -62,7 +74,12 @@ class GetDistReader(ChainReader):
 
     def limits(self):
         """Read <root>.ranges in getdist format."""
-        if 'getdist' in sys.modules:
+        if os.path.isfile(self.yaml_file):
+            s = loadMCSamples(file_root=self.root)
+            limits = {i: (s.ranges.getLower(i), s.ranges.getUpper(i))
+                      for i in s.ranges.names}
+            return limits
+        elif os.path.split(os.path.split(self.root)[0])[-1] == 'raw_polychord_output':
             raw_dir, root_name = os.path.split(self.root)
             chain_dir, _ = os.path.split(raw_dir)
             s = loadMCSamples(file_root=chain_dir + '/' + root_name)
@@ -103,6 +120,11 @@ class GetDistReader(ChainReader):
         return self.root + '.paramnames'
 
     @property
+    def yaml_file(self):
+        """Cobaya parameter file."""
+        return self.root + '.updated.yaml'
+
+    @property
     def ranges_file(self):
         """File containing parameter names."""
         return self.root + '.ranges'
@@ -111,6 +133,8 @@ class GetDistReader(ChainReader):
     def chains_files(self):
         """File containing parameter names."""
         files = glob.glob(self.root + '_[0-9].txt')
+        if not files:
+            files = glob.glob(self.root + '.[0-9].txt')
         if not files:
             files = [self.root + '.txt']
 
