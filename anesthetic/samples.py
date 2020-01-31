@@ -229,15 +229,16 @@ class MCMCSamples(WeightedDataFrame):
             Pandas array of axes objects
 
         """
+        plot = None
         if not isinstance(axes, pandas.Series):
             fig, axes = make_1d_axes(axes, tex=self.tex)
         else:
             fig = axes.values[~axes.isna()][0].figure
 
         for x, ax in axes.iteritems():
-            self.plot(ax, x, *args, **kwargs)
+            plot = self.plot(ax, x, *args, **kwargs)
 
-        return fig, axes
+        return fig, axes, plot
 
     def plot_2d(self, axes, *args, **kwargs):
         """Create an array of 2D plots.
@@ -287,6 +288,7 @@ class MCMCSamples(WeightedDataFrame):
             Pandas array of axes objects
 
         """
+        plot = None
         default_types = {'diagonal': 'kde', 'lower': 'kde', 'upper': 'scatter'}
         types = kwargs.pop('types', default_types)
         diagonal = kwargs.pop('diagonal', True)
@@ -331,9 +333,9 @@ class MCMCSamples(WeightedDataFrame):
                     ax_ = ax.twin if x == y else ax
                     plot_type = types.get(pos, None)
                     lkwargs = local_kwargs.get(pos, {})
-                    self.plot(ax_, x, y, plot_type=plot_type, *args, **lkwargs)
+                    plot = self.plot(ax_, x, y, plot_type=plot_type, *args, **lkwargs)
 
-        return fig, axes
+        return fig, axes, plot
 
     def _limits(self, paramname):
         return self.limits.get(paramname, (None, None))
