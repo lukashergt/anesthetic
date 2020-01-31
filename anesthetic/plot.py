@@ -546,7 +546,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
 
     contours = iso_probability_contours_from_samples(p, weights=w)
 
-    cmap = basic_cmap(color)
+    cmap = kwargs.pop('cmap', basic_cmap(color))
 
     cbar = ax.tricontourf(tri, p, contours, cmap=cmap,
                           zorder=zorder, vmin=0, vmax=p.max(), *args, **kwargs)
