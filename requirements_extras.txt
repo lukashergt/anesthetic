@@ -2,3 +2,5 @@ scipy
 numpy
 pandas
 matplotlib>=3.1.2
+fastkde
+astropy

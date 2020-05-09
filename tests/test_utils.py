@@ -1,6 +1,10 @@
+import warnings
 import numpy
+from scipy import special as sp
 from numpy.testing import assert_array_equal
-from anesthetic.utils import nest_level, compute_nlive, unique
+from anesthetic.utils import (nest_level, compute_nlive, unique, is_int,
+                              triangular_sample_compression_2d,
+                              logsumexp)
 
 
 def test_nest_level():
@@ -31,8 +35,8 @@ def test_compute_nlive():
     # Check the first half are constant
     assert_array_equal(nlives[:len(nlives)//2], nlive)
 
-    # Check one points at the end
-    assert(nlives[-1] == 1)
+    # Check no points at the end
+    assert(nlives[-1] == 0)
 
     # Check never more than nlive
     assert(nlives.max() <= nlive)
@@ -40,3 +44,38 @@ def test_compute_nlive():
 
 def test_unique():
     assert(unique([3, 2, 1, 4, 1, 3]) == [3, 2, 1, 4])
+
+
+def test_triangular_sample_compression_2d():
+    numpy.random.seed(0)
+    n = 5000
+    x = numpy.random.rand(n)
+    y = numpy.random.rand(n)
+    w = numpy.random.rand(n)
+    cov = numpy.identity(2)
+    tri, W = triangular_sample_compression_2d(x, y, cov, w)
+    assert len(W) == 1000
+    assert numpy.isclose(sum(W), sum(w), rtol=1e-1)
+
+
+def test_is_int():
+    assert is_int(1)
+    assert is_int(numpy.int64(1))
+    assert not is_int(1.)
+    assert not is_int(numpy.float64(1.))
+
+
+def test_logsumexpinf():
+    a = numpy.random.rand(10)
+    b = numpy.random.rand(10)
+    assert logsumexp(-numpy.inf, b=[-numpy.inf]) == -numpy.inf
+    assert logsumexp(a, b=b) == sp.logsumexp(a, b=b)
+    a[0] = -numpy.inf
+    assert logsumexp(a, b=b) == sp.logsumexp(a, b=b)
+    b[0] = -numpy.inf
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore',
+                                'invalid value encountered in multiply',
+                                RuntimeWarning)
+        assert numpy.isnan(sp.logsumexp(a, b=b))
+    assert numpy.isfinite(logsumexp(a, b=b))

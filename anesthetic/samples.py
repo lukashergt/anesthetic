@@ -6,15 +6,14 @@
 import os
 import numpy
 import pandas
-from scipy.special import logsumexp
 from anesthetic.plot import (make_1d_axes, make_2d_axes, fastkde_plot_1d,
                              kde_plot_1d, hist_plot_1d, scatter_plot_2d,
                              fastkde_contour_plot_2d,
                              kde_contour_plot_2d, hist_plot_2d)
 from anesthetic.read.samplereader import SampleReader
-from anesthetic.utils import compute_nlive
+from anesthetic.utils import compute_nlive, is_int, logsumexp
 from anesthetic.gui.plot import RunPlotter
-from anesthetic.weighted_pandas import WeightedDataFrame
+from anesthetic.weighted_pandas import WeightedDataFrame, WeightedSeries
 
 
 class MCMCSamples(WeightedDataFrame):
@@ -54,34 +53,49 @@ class MCMCSamples(WeightedDataFrame):
     label: str
         Legend label
 
+    logzero: float
+        The threshold for `log(0)` values assigned to rejected sample points.
+        Anything equal or below this value is set to `-numpy.inf`.
+        default: -1e30
+
     """
 
     def __init__(self, *args, **kwargs):
         root = kwargs.pop('root', None)
         if root is not None:
             reader = SampleReader(root)
+            if hasattr(reader, 'birth_file') or hasattr(reader, 'ev_file'):
+                raise ValueError("The file root %s seems to point to a Nested "
+                                 "Sampling chain. Please use NestedSamples "
+                                 "instead which has the same features as "
+                                 "MCMCSamples and more. MCMCSamples should be "
+                                 "used for MCMC chains only." % root)
             w, logL, samples = reader.samples()
             params, tex = reader.paramnames()
+            columns = kwargs.pop('columns', params)
             limits = reader.limits()
             kwargs['label'] = kwargs.get('label', os.path.basename(root))
-            self.__init__(data=samples, columns=params, w=w, logL=logL,
+            self.__init__(data=samples, columns=columns, w=w, logL=logL,
                           tex=tex, limits=limits, *args, **kwargs)
             self.root = root
         else:
+            logzero = kwargs.pop('logzero', -1e30)
             logL = kwargs.pop('logL', None)
+            if logL is not None:
+                logL = numpy.where(logL <= logzero, -numpy.inf, logL)
             self.tex = kwargs.pop('tex', {})
             self.limits = kwargs.pop('limits', {})
             self.label = kwargs.pop('label', None)
             self.root = None
             super(MCMCSamples, self).__init__(*args, **kwargs)
 
-            if self.weight is not None:
-                self['weight'] = self.weight
-                self.tex['weight'] = r'MCMC weight'
-
             if logL is not None:
                 self['logL'] = logL
                 self.tex['logL'] = r'$\log\mathcal{L}$'
+
+            if self._weight is not None:
+                self['weight'] = self.weight
+                self.tex['weight'] = r'MCMC weight'
 
     def plot(self, ax, paramname_x, paramname_y=None, *args, **kwargs):
         """Interface for 2D and 1D plotting routines.
@@ -382,6 +396,11 @@ class NestedSamples(MCMCSamples):
     beta: float
         thermodynamic temperature
 
+    logzero: float
+        The threshold for `log(0)` values assigned to rejected sample points.
+        Anything equal or below this value is set to `-numpy.inf`.
+        default: -1e30
+
     """
 
     def __init__(self, *args, **kwargs):
@@ -390,37 +409,25 @@ class NestedSamples(MCMCSamples):
             reader = SampleReader(root)
             samples, logL, logL_birth = reader.samples()
             params, tex = reader.paramnames()
+            columns = kwargs.pop('columns', params)
             limits = reader.limits()
             kwargs['label'] = kwargs.get('label', os.path.basename(root))
-            self.__init__(data=samples, columns=params,
+            self.__init__(data=samples, columns=columns,
                           logL=logL, logL_birth=logL_birth,
                           tex=tex, limits=limits, *args, **kwargs)
             self.root = root
         else:
+            logzero = kwargs.pop('logzero', -1e30)
             self._beta = kwargs.pop('beta', 1.)
             logL_birth = kwargs.pop('logL_birth', None)
-            super(NestedSamples, self).__init__(*args, **kwargs)
+            if not isinstance(logL_birth, int) and logL_birth is not None:
+                logL_birth = numpy.where(logL_birth <= logzero,
+                                         -numpy.inf, logL_birth)
 
-            # Compute nlive
+            super(NestedSamples, self).__init__(logzero=logzero,
+                                                *args, **kwargs)
             if logL_birth is not None:
-                if isinstance(logL_birth, int):
-                    nlive = logL_birth
-                    self['nlive'] = nlive
-                    descending = numpy.arange(nlive, 0, -1)
-                    self.loc[len(self)-nlive:, 'nlive'] = descending
-                else:
-                    self['logL_birth'] = logL_birth
-                    self.tex['logL_birth'] = r'$\log\mathcal{L}_{\rm birth}$'
-                    self['nlive'] = compute_nlive(self.logL, self.logL_birth)
-
-                self.tex['nlive'] = r'$n_{\rm live}$'
-
-            if 'nlive' in self:
-                self.beta = self._beta
-
-            if self.weight is not None:
-                self['weight'] = self.weight
-                self.tex['weight'] = r'MCMC weight'
+                self._compute_nlive(logL_birth)
 
     @property
     def beta(self):
@@ -430,8 +437,12 @@ class NestedSamples(MCMCSamples):
     @beta.setter
     def beta(self, beta):
         self._beta = beta
-        logw = self._dlogX() + self.beta*self.logL
+        logw = self.dlogX() + self.beta*self.logL
         self._weight = numpy.exp(logw - logw.max())
+
+        if self._weight is not None:
+            self['weight'] = self.weight
+            self.tex['weight'] = r'MCMC weight'
 
     def set_beta(self, beta, inplace=False):
         """Change the inverse temperature.
@@ -614,3 +625,22 @@ class NestedSamples(MCMCSamples):
     @property
     def _constructor(self):
         return NestedSamples
+
+
+def merge_nested_samples(runs):
+    """Merge two or more nested sampling runs.
+
+    Parameters
+    ----------
+    runs: list(NestedSamples)
+        list or array-like of nested sampling runs.
+
+    Returns
+    -------
+    samples: NestedSamples
+        Merged run.
+    """
+    samples = pandas.concat(runs, ignore_index=True)
+    samples = samples.sort_values('logL').reset_index(drop=True)
+    samples._compute_nlive(samples.logL_birth)
+    return samples
