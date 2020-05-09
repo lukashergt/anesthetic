@@ -472,38 +472,97 @@ class NestedSamples(MCMCSamples):
             Samples from the P(logZ, D, d) distribution
 
         """
-        dlogX = self._dlogX(nsamples)
+        dlogX = self.dlogX(nsamples)
+        samples = MCMCSamples(index=dlogX.columns)
+        samples['logZ'] = self.logZ(dlogX)
 
-        logZ = logsumexp(self.logL.values + dlogX, axis=1)
-        logw = ((self.logL.values + dlogX).T - logZ).T
-        S = ((self.logL.values + numpy.zeros_like(dlogX)).T
-             - logZ).T
+        logw = dlogX.add(self.beta * self.logL, axis=0)
+        logw -= samples.logZ
+        S = (dlogX*0).add(self.beta * self.logL, axis=0) - samples.logZ
 
-        D = numpy.exp(logsumexp(logw, b=S, axis=1))
-        STDT = (S.T - D).T
-        STDT2 = numpy.where(numpy.abs(STDT) > 1e150, 1e300, STDT ** 2)
-        d = numpy.exp(logsumexp(logw, b=STDT2, axis=1)) * 2
+        samples['D'] = numpy.exp(logsumexp(logw, b=S, axis=0))
+        samples['d'] = numpy.exp(logsumexp(logw, b=(S-samples.D)**2, axis=0))*2
 
-        samples = numpy.vstack((logZ, D, d)).T
-        params = ['logZ', 'D', 'd']
-        tex = {'logZ': r'$\log\mathcal{Z}$',
-               'D': r'$\mathcal{D}$',
-               'd': r'$d$'}
-        return MCMCSamples(data=samples, columns=params, tex=tex)
+        samples.tex = {'logZ': r'$\log\mathcal{Z}$',
+                       'D': r'$\mathcal{D}$',
+                       'd': r'$d$'}
+        samples.label = self.label
+        return samples
 
-    def live_points(self, logL):
-        """Get the live points within logL."""
+    def logZ(self, nsamples=None):
+        """Log-Evidence.
+
+        - If nsamples is not supplied, return mean log evidence
+        - If nsamples is integer, return nsamples from the distribution
+        - If nsamples is array, use nsamples as volumes of evidence shells
+
+        """
+        dlogX = self.dlogX(nsamples)
+        logw = dlogX.add(self.beta * self.logL, axis=0)
+        return logsumexp(logw, axis=0)
+
+    def D(self, nsamples=None):
+        """Kullback-Leibler divergence.
+
+        - If nsamples is not supplied, return mean KL divergence
+        - If nsamples is integer, return nsamples from the distribution
+        - If nsamples is array, use nsamples as volumes of evidence shells
+
+        """
+        dlogX = self.dlogX(nsamples)
+        logZ = self.logZ(dlogX)
+        logw = dlogX.add(self.beta * self.logL, axis=0) - logZ
+        S = (dlogX*0).add(self.beta * self.logL, axis=0) - logZ
+        return numpy.exp(logsumexp(logw, b=S, axis=0))
+
+    def d(self, nsamples=None):
+        """Bayesian model dimensionality.
+
+        - If nsamples is not supplied, return mean BMD
+        - If nsamples is integer, return nsamples from the distribution
+        - If nsamples is array, use nsamples as volumes of evidence shells
+
+        """
+        dlogX = self.dlogX(nsamples)
+        logZ = self.logZ(dlogX)
+        D = self.D(dlogX)
+        logw = dlogX.add(self.beta * self.logL, axis=0) - logZ
+        S = (dlogX*0).add(self.beta * self.logL, axis=0) - logZ
+        return numpy.exp(logsumexp(logw, b=(S-D)**2, axis=0))*2
+
+    def live_points(self, logL=None):
+        """Get the live points within logL.
+
+        Parameters
+        ----------
+        logL: float or int, optional
+            Loglikelihood or iteration number to return live points.
+            If not provided, return the last set of active live points.
+
+        Returns
+        -------
+        live_points: NestedSamples
+            Live points at either:
+                - contour logL (if input is float)
+                - ith contour (if input is integer)
+                - last generation contour if logL not provided
+        """
+        if logL is None:
+            logL = self.logL_birth.max()
+        elif is_int(logL):
+            logL = self.logL[logL]
+
         return self[(self.logL > logL) & (self.logL_birth <= logL)]
 
-    def posterior_points(self, beta):
-        """Get the posterior points at temperature beta."""
-        return self.set_beta(beta).compress(0)
+    def posterior_points(self, beta=1):
+        """Get equally weighted posterior points at temperature beta."""
+        return self.set_beta(beta).compress(-1)
 
     def gui(self, params=None):
         """Construct a graphical user interface for viewing samples."""
         return RunPlotter(self, params)
 
-    def _dlogX(self, nsamples=None):
+    def dlogX(self, nsamples=None):
         """Compute volume of shell of loglikelihood.
 
         Parameters
@@ -514,20 +573,41 @@ class NestedSamples(MCMCSamples):
             distribution. (Default: None)
 
         """
+        with numpy.errstate(divide='ignore'):
+            if numpy.ndim(nsamples) > 0:
+                return nsamples
+            elif nsamples is None:
+                t = numpy.log(self.nlive/(self.nlive+1)).to_frame()
+            else:
+                r = numpy.log(numpy.random.rand(len(self), nsamples))
+                t = pandas.DataFrame(r, self.index).divide(self.nlive, axis=0)
+
+        logX = t.cumsum()
+        logXp = logX.shift(1, fill_value=0)
+        logXm = logX.shift(-1, fill_value=-numpy.inf)
+        dlogX = logsumexp([logXp.values, logXm.values],
+                          b=[numpy.ones_like(logXp), -numpy.ones_like(logXm)],
+                          axis=0) - numpy.log(2)
+
         if nsamples is None:
-            t = numpy.atleast_2d(numpy.log(self.nlive/(self.nlive+1)))
-            nsamples = 1
+            dlogX = numpy.squeeze(dlogX)
+            return WeightedSeries(dlogX, self.index, w=self.weight)
         else:
-            t = numpy.log(numpy.random.rand(nsamples, len(self))
-                          )/self.nlive.values
-        logX = numpy.concatenate((numpy.zeros((nsamples, 1)),
-                                  t.cumsum(axis=1),
-                                  -numpy.inf*numpy.ones((nsamples, 1))
-                                  ), axis=1)
-        dlogX = logsumexp([logX[:, :-2], logX[:, 2:]],
-                          b=[numpy.ones_like(t), -numpy.ones_like(t)], axis=0)
-        dlogX -= numpy.log(2)
-        return numpy.squeeze(dlogX)
+            return WeightedDataFrame(dlogX, self.index, w=self.weight)
+
+    def _compute_nlive(self, logL_birth):
+        if is_int(logL_birth):
+            nlive = logL_birth
+            self['nlive'] = nlive
+            descending = numpy.arange(nlive, 0, -1)
+            self.loc[len(self)-nlive:, 'nlive'] = descending
+        else:
+            self['logL_birth'] = logL_birth
+            self.tex['logL_birth'] = r'$\log\mathcal{L}_{\rm birth}$'
+            self['nlive'] = compute_nlive(self.logL, self.logL_birth)
+
+        self.tex['nlive'] = r'$n_{\rm live}$'
+        self.beta = self._beta
 
     _metadata = MCMCSamples._metadata + ['_beta']
 
