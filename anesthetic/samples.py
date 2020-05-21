@@ -89,6 +89,10 @@ class MCMCSamples(WeightedDataFrame):
             self.root = None
             super(MCMCSamples, self).__init__(*args, **kwargs)
 
+            for param in self.columns:
+                if param not in self.limits:
+                    self.limits[param] = (self[param].min(), self[param].max())
+
             if logL is not None:
                 self['logL'] = logL
                 self.tex['logL'] = r'$\log\mathcal{L}$'
