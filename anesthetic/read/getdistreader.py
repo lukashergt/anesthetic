@@ -83,8 +83,12 @@ class GetDistReader(ChainReader):
             raw_dir, root_name = os.path.split(self.root)
             chain_dir, _ = os.path.split(raw_dir)
             s = loadMCSamples(file_root=chain_dir + '/' + root_name)
-            limits = {i: (s.ranges.getLower(i), s.ranges.getUpper(i))
-                      for i in s.ranges.names}
+            limits = {}
+            for key in s.ranges.names:
+                if s.ranges.getLower(key) is not None or s.ranges.getUpper(key) is not None:
+                    limits[key] = (s.ranges.getLower(key), s.ranges.getUpper(key))
+            # limits = {i: (s.ranges.getLower(i), s.ranges.getUpper(i))
+            #           for i in s.ranges.names}
             return limits
         else:
             try:
