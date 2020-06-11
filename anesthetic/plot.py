@@ -526,6 +526,17 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     linewidths = kwargs.pop('linewidths', 0.5)
     color = kwargs.pop('color', next(ax._get_lines.prop_cycler)['color'])
 
+    if np.any(np.isnan(data_x)):
+        mask_x = ~np.isnan(data_x)
+        data_x = data_x[mask_x]
+        data_y = data_x[mask_x]
+        weights = weights[mask_x]
+    if np.any(np.isnan(data_y)):
+        mask_y = ~np.isnan(data_y)
+        data_x = data_x[mask_y]
+        data_y = data_x[mask_y]
+        weights = weights[mask_y]
+
     if len(data_x) == 0 or len(data_y) == 0:
         return np.zeros(0), np.zeros(0), np.zeros((0, 0))
 
