@@ -158,7 +158,7 @@ class MCMCSamples(WeightedDataFrame):
                                        xmin=xmin, xmax=xmax,
                                        *args, **kwargs)
                 elif plot_type == 'fastkde':
-                    x = self[paramname_x].compress(ncompress)
+                    x = self[paramname_x].compress(weight=self.weight, nsamples=ncompress)
                     return fastkde_plot_1d(ax, x, xmin=xmin, xmax=xmax,
                                            *args, **kwargs)
                 elif plot_type == 'hist':
@@ -166,7 +166,7 @@ class MCMCSamples(WeightedDataFrame):
                                         weights=self.weight,
                                         xmin=xmin, xmax=xmax, *args, **kwargs)
                 elif plot_type == 'astropyhist':
-                    x = self[paramname_x].compress(ncompress)
+                    x = self[paramname_x].compress(weight=self.weight, nsamples=ncompress)
                     return hist_plot_1d(ax, x, plotter='astropyhist',
                                         xmin=xmin, xmax=xmax, *args, **kwargs)
                 else:
@@ -193,8 +193,8 @@ class MCMCSamples(WeightedDataFrame):
                                                ncompress=ncompress,
                                                *args, **kwargs)
                 elif plot_type == 'fastkde':
-                    x = self[paramname_x].compress(ncompress)
-                    y = self[paramname_y].compress(ncompress)
+                    x = self[paramname_x].compress(weight=self.weight, nsamples=ncompress)
+                    y = self[paramname_y].compress(weight=self.weight, nsamples=ncompress)
                     return fastkde_contour_plot_2d(ax, x, y,
                                                    xmin=xmin, xmax=xmax,
                                                    ymin=ymin, ymax=ymax,
@@ -202,8 +202,8 @@ class MCMCSamples(WeightedDataFrame):
                 elif plot_type == 'scatter':
                     if ncompress is None:
                         ncompress = 500
-                    x = self[paramname_x].compress(ncompress)
-                    y = self[paramname_y].compress(ncompress)
+                    x = self[paramname_x].compress(weight=self.weight, nsamples=ncompress)
+                    y = self[paramname_y].compress(weight=self.weight, nsamples=ncompress)
                     return scatter_plot_2d(ax, x, y, xmin=xmin, xmax=xmax,
                                            ymin=ymin, ymax=ymax,
                                            *args, **kwargs)

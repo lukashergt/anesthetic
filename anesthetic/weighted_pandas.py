@@ -65,7 +65,7 @@ class WeightedSeries(_WeightedObject, pandas.Series):
         return super(WeightedSeries, self).hist(weights=self.weight,
                                                 *args, **kwargs)
 
-    def compress(self, nsamples=None):
+    def compress(self, weight, nsamples=None):
         """Reduce the number of samples by discarding low-weights.
 
         Parameters
@@ -76,7 +76,7 @@ class WeightedSeries(_WeightedObject, pandas.Series):
             compression). If <=0, then compress so that all weights are unity.
 
         """
-        i = compress_weights(self.weight, self._rand, nsamples)
+        i = compress_weights(weight, self._rand, nsamples)
         return self.repeat(i)
 
     _metadata = ['_weight', '_rand_']
@@ -131,7 +131,7 @@ class WeightedDataFrame(_WeightedObject, pandas.DataFrame):
         return super(WeightedDataFrame, self).hist(weights=self.weight,
                                                    *args, **kwargs)
 
-    def compress(self, nsamples=None):
+    def compress(self, weight, nsamples=None):
         """Reduce the number of samples by discarding low-weights.
 
         Parameters
@@ -142,7 +142,7 @@ class WeightedDataFrame(_WeightedObject, pandas.DataFrame):
             compression). If <=0, then compress so that all weights are unity.
 
         """
-        i = compress_weights(self.weight, self._rand, nsamples)
+        i = compress_weights(weight, self._rand, nsamples)
         data = np.repeat(self.values, i, axis=0)
         index = np.repeat(self.index.values, i)
         df = pandas.DataFrame(data=data, index=index, columns=self.columns)
