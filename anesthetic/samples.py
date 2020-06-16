@@ -58,6 +58,12 @@ class MCMCSamples(WeightedDataFrame):
         Anything equal or below this value is set to `-np.inf`.
         default: -1e30
 
+    discard_burnin: int or float
+        Discard the first integer number of nsamples (int)
+        or the first fraction of nsamples (float).
+        Only works if `root` provided and if chains are GetDist compatible.
+        default: False
+
     """
 
     def __init__(self, *args, **kwargs):
@@ -70,7 +76,8 @@ class MCMCSamples(WeightedDataFrame):
                                  "instead which has the same features as "
                                  "MCMCSamples and more. MCMCSamples should be "
                                  "used for MCMC chains only." % root)
-            w, logL, samples = reader.samples()
+            discard_burnin = kwargs.pop('discard_burnin', False)
+            w, logL, samples = reader.samples(discard_burnin=discard_burnin)
             params, tex = reader.paramnames()
             columns = kwargs.pop('columns', params)
             limits = reader.limits()
