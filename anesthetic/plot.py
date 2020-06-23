@@ -181,14 +181,14 @@ def make_2d_axes(params, **kwargs):
         return fig, axes
     position = axes.copy()
     axes[:][:] = None
-    for j, y in enumerate(axes.index):
+    for j, y in enumerate(axes.index[::-1]):
         for i, x in enumerate(axes.columns):
             if position[x][y] is not None:
                 sx = list(axes[x].dropna())
                 sx = sx[0] if sx else None
                 sy = list(axes.T[y].dropna())
                 sy = sy[0] if sy else None
-                axes[x][y] = fig.add_subplot(grid[j, i],
+                axes[x][y] = fig.add_subplot(grid[len(axes.index)-1-j, i],
                                              sharex=sx, sharey=sy)
 
                 if position[x][y] == 0:
@@ -202,10 +202,14 @@ def make_2d_axes(params, **kwargs):
                     axes[x][y].containers = axes[x][y].twin.containers
                     make_diagonal(axes[x][y])
                     axes[x][y].position = 'diagonal'
-                elif position[x][y] == 1:
-                    axes[x][y].position = 'upper'
-                elif position[x][y] == -1:
-                    axes[x][y].position = 'lower'
+                    axes[x][y].twin.xaxis.set_major_locator(MaxNLocator(3, prune='both'))
+                else:
+                    if position[x][y] == 1:
+                        axes[x][y].position = 'upper'
+                    elif position[x][y] == -1:
+                        axes[x][y].position = 'lower'
+                    axes[x][y].yaxis.set_major_locator(MaxNLocator(3, prune='both'))
+                axes[x][y].xaxis.set_major_locator(MaxNLocator(3, prune='both'))
 
     for y, ax in axes.bfill(axis=1).iloc[:, 0].dropna().iteritems():
         ax.set_ylabel(tex[y])
@@ -216,20 +220,25 @@ def make_2d_axes(params, **kwargs):
     for y, ax in axes.iterrows():
         ax_ = ax.dropna()
         if len(ax_):
-            for a in ax_[1:]:
-                a.tick_params('y', left=False, labelleft=False)
+            for i, a in enumerate(ax_):
+                if i == 0:  # first column
+                    if len(ax_) == 1 and a.position == 'diagonal':
+                        a.tick_params('y', left=False, labelleft=False)
+                    else:
+                        a.tick_params('y', left=True, labelleft=True)
+                else:
+                    a.tick_params('y', left=True, labelleft=False, direction='inout')
 
     for x, ax in axes.iteritems():
         ax_ = ax.dropna()
         if len(ax_):
-            for a in ax_[:-1]:
-                a.tick_params('x', bottom=False, labelbottom=False)
-
-    for y, ax in axes.bfill(axis=1).iloc[:, 0].dropna().iteritems():
-        ax.yaxis.set_major_locator(MaxNLocator(3, prune='both'))
-
-    for x, ax in axes.ffill(axis=0).iloc[-1, :].dropna().iteritems():
-        ax.xaxis.set_major_locator(MaxNLocator(3, prune='both'))
+            for i, a in enumerate(ax_):
+                if i == len(ax_) - 1:  # bottom row
+                    a.tick_params('x', bottom=True, labelbottom=True)
+                else:  # not bottom row
+                    a.tick_params('x', bottom=True, labelbottom=False, direction='inout')
+                    if a.position == 'diagonal':
+                        a.twin.tick_params('x', bottom=True, labelbottom=False, direction='inout')
 
     return fig, axes
 
