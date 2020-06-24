@@ -38,7 +38,7 @@ class MCMCSamples(WeightedDataFrame):
     columns: list(str)
         reference names of parameters
 
-    w: np.array
+    weight: np.array
         weights of samples.
 
     logL: np.array
@@ -77,13 +77,13 @@ class MCMCSamples(WeightedDataFrame):
                                  "MCMCSamples and more. MCMCSamples should be "
                                  "used for MCMC chains only." % root)
             burn_in = kwargs.pop('burn_in', False)
-            w, logL, samples = reader.samples(burn_in=burn_in)
+            weight, logL, samples = reader.samples(burn_in=burn_in)
             params, tex = reader.paramnames()
             columns = kwargs.pop('columns', params)
             limits = reader.limits()
             kwargs['label'] = kwargs.get('label', os.path.basename(root))
-            self.__init__(data=samples, columns=columns, w=w, logL=logL,
-                          tex=tex, limits=limits, *args, **kwargs)
+            self.__init__(data=samples, columns=columns, weight=weight,
+                          logL=logL, tex=tex, limits=limits, *args, **kwargs)
             self.root = root
         else:
             logzero = kwargs.pop('logzero', -1e30)
@@ -139,6 +139,17 @@ class MCMCSamples(WeightedDataFrame):
             Number of samples to use in plotting routines.
             optional, Default dynamically chosen
 
+        q: str, float, (float, float)
+            Plot the `q` inner posterior quantiles in 1d 'kde' plots. To plot
+            the full range, set `q=0` or `q=1`.
+            * if str: any of {'1sigma', '2sigma', '3sigma', '4sigma', '5sigma'}
+                Plot within mean +/- #sigma of posterior.
+            * if float: Plot within the symmetric confidence interval
+                `(1-q, q)`  or `(q, 1-q)`.
+            * if tuple:  Plot within the (possibly asymmetric) confidence
+                interval `q`.
+            optional, (Default: '5sigma')
+
         Returns
         -------
         fig: matplotlib.figure.Figure
@@ -152,31 +163,31 @@ class MCMCSamples(WeightedDataFrame):
         do_1d_plot = paramname_y is None or paramname_x == paramname_y
         kwargs['label'] = kwargs.get('label', self.label)
         ncompress = kwargs.pop('ncompress', None)
-        ncompress_1d = kwargs.pop('ncompress_1d', ncompress)
 
         if do_1d_plot:
             if paramname_x in self and plot_type is not None:
                 xmin, xmax = self._limits(paramname_x)
+                kwargs['xmin'] = kwargs.get('xmin', xmin)
+                kwargs['xmax'] = kwargs.get('xmax', xmax)
                 if plot_type == 'kde':
-                    if ncompress_1d is None:
-                        ncompress_1d = 1000
+                    if ncompress is None:
+                        ncompress = 1000
                     return kde_plot_1d(ax, self[paramname_x],
                                        weights=self.weight,
-                                       ncompress=ncompress_1d,
+                                       ncompress=ncompress,
                                        xmin=xmin, xmax=xmax,
                                        *args, **kwargs)
                 elif plot_type == 'fastkde':
                     x = self[paramname_x].compress(weight=self.weight, nsamples=ncompress)
-                    return fastkde_plot_1d(ax, x, xmin=xmin, xmax=xmax,
-                                           *args, **kwargs)
+                    return fastkde_plot_1d(ax, x, *args, **kwargs)
                 elif plot_type == 'hist':
                     return hist_plot_1d(ax, self[paramname_x],
                                         weights=self.weight,
-                                        xmin=xmin, xmax=xmax, *args, **kwargs)
+                                        *args, **kwargs)
                 elif plot_type == 'astropyhist':
                     x = self[paramname_x].compress(weight=self.weight, nsamples=ncompress)
                     return hist_plot_1d(ax, x, plotter='astropyhist',
-                                        xmin=xmin, xmax=xmax, *args, **kwargs)
+                                        *args, **kwargs)
                 else:
                     raise NotImplementedError("plot_type is '%s', but must be"
                                               " one of {'kde', 'fastkde', "
@@ -189,23 +200,23 @@ class MCMCSamples(WeightedDataFrame):
             if (paramname_x in self and paramname_y in self
                     and plot_type is not None):
                 xmin, xmax = self._limits(paramname_x)
+                kwargs['xmin'] = kwargs.get('xmin', xmin)
+                kwargs['xmax'] = kwargs.get('xmax', xmax)
                 ymin, ymax = self._limits(paramname_y)
+                kwargs['ymin'] = kwargs.get('ymin', ymin)
+                kwargs['ymax'] = kwargs.get('ymax', ymax)
                 if plot_type == 'kde':
                     if ncompress is None:
                         ncompress = 1000
                     x = self[paramname_x]
                     y = self[paramname_y]
                     return kde_contour_plot_2d(ax, x, y, weights=self.weight,
-                                               xmin=xmin, xmax=xmax,
-                                               ymin=ymin, ymax=ymax,
                                                ncompress=ncompress,
                                                *args, **kwargs)
                 elif plot_type == 'fastkde':
                     x = self[paramname_x].compress(weight=self.weight, nsamples=ncompress)
                     y = self[paramname_y].compress(weight=self.weight, nsamples=ncompress)
                     return fastkde_contour_plot_2d(ax, x, y,
-                                                   xmin=xmin, xmax=xmax,
-                                                   ymin=ymin, ymax=ymax,
                                                    *args, **kwargs)
                 elif plot_type == 'scatter':
                     if ncompress is None:
@@ -219,8 +230,6 @@ class MCMCSamples(WeightedDataFrame):
                     x = self[paramname_x]
                     y = self[paramname_y]
                     return hist_plot_2d(ax, x, y, weights=self.weight,
-                                        xmin=xmin, xmax=xmax,
-                                        ymin=ymin, ymax=ymax,
                                         *args, **kwargs)
                 else:
                     raise NotImplementedError("plot_type is '%s', but must be"
@@ -360,7 +369,10 @@ class MCMCSamples(WeightedDataFrame):
         return fig, axes
 
     def _limits(self, paramname):
-        return self.limits.get(paramname, (None, None))
+        limits = self.limits.get(paramname, (None, None))
+        if limits[0] == limits[1]:
+            limits = (None, None)
+        return limits
 
     def _reload_data(self):
         self.__init__(root=self.root)
@@ -401,16 +413,20 @@ class NestedSamples(MCMCSamples):
         birth loglikelihoods, or number of live points.
 
     tex: dict
-        mapping from columns to tex labels for plotting
+        optional mapping from column names to tex labels for plotting
 
     limits: dict
-        mapping from columns to prior limits
+        mapping from columns to prior limits.
+        Defaults defined by .ranges file (if it exists)
+        otherwise defined by minimum and maximum of the nested sampling data
 
     label: str
         Legend label
+        default: basename of root
 
     beta: float
         thermodynamic temperature
+        default: 1.
 
     logzero: float
         The threshold for `log(0)` values assigned to rejected sample points.
@@ -621,9 +637,9 @@ class NestedSamples(MCMCSamples):
 
         if nsamples is None:
             dlogX = np.squeeze(dlogX)
-            return WeightedSeries(dlogX, self.index, w=self.weight)
+            return WeightedSeries(dlogX, self.index, weight=self.weight)
         else:
-            return WeightedDataFrame(dlogX, self.index, w=self.weight)
+            return WeightedDataFrame(dlogX, self.index, weight=self.weight)
 
     def _compute_nlive(self, logL_birth):
         if is_int(logL_birth):
