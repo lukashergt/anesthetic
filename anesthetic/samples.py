@@ -175,7 +175,6 @@ class MCMCSamples(WeightedDataFrame):
                     return kde_plot_1d(ax, self[paramname_x],
                                        weights=self.weight,
                                        ncompress=ncompress,
-                                       xmin=xmin, xmax=xmax,
                                        *args, **kwargs)
                 elif plot_type == 'fastkde':
                     x = self[paramname_x].compress(weight=self.weight, nsamples=ncompress)
@@ -223,9 +222,7 @@ class MCMCSamples(WeightedDataFrame):
                         ncompress = 500
                     x = self[paramname_x].compress(weight=self.weight, nsamples=ncompress)
                     y = self[paramname_y].compress(weight=self.weight, nsamples=ncompress)
-                    return scatter_plot_2d(ax, x, y, xmin=xmin, xmax=xmax,
-                                           ymin=ymin, ymax=ymax,
-                                           *args, **kwargs)
+                    return scatter_plot_2d(ax, x, y, *args, **kwargs)
                 elif plot_type == 'hist':
                     x = self[paramname_x]
                     y = self[paramname_y]
