@@ -69,7 +69,7 @@ class WeightedSeries(_WeightedObject, pandas.Series):
         return super(WeightedSeries, self).hist(weights=self.weights,
                                                 *args, **kwargs)
 
-    def compress(self, weight, nsamples=None):
+    def compress(self, nsamples=None):
         """Reduce the number of samples by discarding low-weights.
 
         Parameters
@@ -132,7 +132,7 @@ class WeightedDataFrame(_WeightedObject, pandas.DataFrame):
         return super(WeightedDataFrame, self).hist(weights=self.weights,
                                                    *args, **kwargs)
 
-    def compress(self, weight, nsamples=None):
+    def compress(self, nsamples=None):
         """Reduce the number of samples by discarding low-weights.
 
         Parameters
