@@ -261,10 +261,13 @@ class MCMCSamples(WeightedDataFrame):
         else:
             fig = axes.values[~axes.isna()][0].figure
 
+        pp = []
         for x, ax in axes.iteritems():
-            self.plot(ax, x, *args, **kwargs)
+            p = self.plot(ax, x, *args, **kwargs)
+            if p is not None:
+                pp += p
 
-        return fig, axes
+        return fig, axes, pp
 
     def plot_2d(self, axes, *args, **kwargs):
         """Create an array of 2D plots.
