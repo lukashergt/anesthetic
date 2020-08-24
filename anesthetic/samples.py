@@ -6,13 +6,14 @@
 import os
 import numpy as np
 import pandas
+import copy
 from anesthetic.plot import (make_1d_axes, make_2d_axes, fastkde_plot_1d,
                              kde_plot_1d, hist_plot_1d, scatter_plot_2d,
                              fastkde_contour_plot_2d,
                              kde_contour_plot_2d, hist_plot_2d)
 from anesthetic.read.samplereader import SampleReader
 from anesthetic.utils import (compute_nlive, compute_insertion_indexes,
-                              is_int, logsumexp)
+                              is_int, logsumexp, modify_inplace)
 from anesthetic.gui.plot import RunPlotter
 from anesthetic.weighted_pandas import WeightedDataFrame, WeightedSeries
 
@@ -344,6 +345,46 @@ class MCMCSamples(WeightedDataFrame):
 
         return fig, axes
 
+    def importance_sample(self, logL_new, action='add', inplace=False):
+        """Perform importance re-weighting on the log-likelihood.
+
+        Parameters
+        ----------
+        logL_new: np.array
+            New log-likelihood values. Should have the same shape as `logL`.
+
+        action: str, optional
+            Can be any of {'add', 'replace', 'mask'}.
+                * add: Add the new `logL_new` to the current `logL`.
+                * replace: Replace the current `logL` with the new `logL_new`.
+                * mask: treat `logL_new` as a boolean mask and only keep the
+                        corresponding (True) samples.
+            default: 'add'
+
+        inplace: bool, optional
+            Indicates whether to modify the existing array, or return a new
+            frame with importance sampling applied.
+            default: False
+
+        Returns
+        -------
+        samples: MCMCSamples
+            Importance re-weighted samples.
+        """
+        samples = self.copy()
+        if action == 'add':
+            samples.logL += logL_new
+        elif action == 'replace':
+            samples.logL = logL_new
+        elif action == 'mask':
+            samples = samples[logL_new]
+        else:
+            raise NotImplementedError("`action` needs to be one of "
+                                      "{'add', 'replace', 'mask'}, but '%s' "
+                                      "was requested." % action)
+
+        return modify_inplace(self, samples, inplace)
+
     def _limits(self, paramname):
         limits = self.limits.get(paramname, (None, None))
         if limits[0] == limits[1]:
@@ -353,6 +394,14 @@ class MCMCSamples(WeightedDataFrame):
     def _reload_data(self):
         self.__init__(root=self.root)
         return self
+
+    def copy(self, deep=True):
+        """Copy which also includes mutable metadata."""
+        new = super().copy(deep)
+        if deep:
+            new.tex = copy.deepcopy(self.tex)
+            new.limits = copy.deepcopy(self.limits)
+        return new
 
     _metadata = WeightedDataFrame._metadata + ['tex', 'limits',
                                                'root', 'label']
@@ -367,9 +416,15 @@ class NestedSamples(MCMCSamples):
 
     We extend the MCMCSamples class with the additional methods:
 
-    * ``self.ns_output()``
     * ``self.live_points(logL)``
     * ``self.posterior_points(beta)``
+    * ``self.ns_output()``
+    * ``self.logZ()``
+    * ``self.D()``
+    * ``self.d()``
+    * ``self.recompute()``
+    * ``self.gui()``
+    * ``self.importance_sample()``
 
     Parameters
     ----------
@@ -435,7 +490,7 @@ class NestedSamples(MCMCSamples):
             super(NestedSamples, self).__init__(logzero=logzero,
                                                 *args, **kwargs)
             if logL_birth is not None:
-                self._compute_nlive(logL_birth)
+                self.recompute(logL_birth, inplace=True)
 
             self._set_automatic_limits()
 
@@ -593,14 +648,13 @@ class NestedSamples(MCMCSamples):
             distribution. (Default: None)
 
         """
-        with np.errstate(divide='ignore'):
-            if np.ndim(nsamples) > 0:
-                return nsamples
-            elif nsamples is None:
-                t = np.log(self.nlive/(self.nlive+1)).to_frame()
-            else:
-                r = np.log(np.random.rand(len(self), nsamples))
-                t = pandas.DataFrame(r, self.index).divide(self.nlive, axis=0)
+        if np.ndim(nsamples) > 0:
+            return nsamples
+        elif nsamples is None:
+            t = np.log(self.nlive/(self.nlive+1)).to_frame()
+        else:
+            r = np.log(np.random.rand(len(self), nsamples))
+            t = pandas.DataFrame(r, self.index).divide(self.nlive, axis=0)
 
         logX = t.cumsum()
         logXp = logX.shift(1, fill_value=0)
@@ -615,19 +669,76 @@ class NestedSamples(MCMCSamples):
         else:
             return WeightedDataFrame(dlogX, self.index, weights=self.weights)
 
-    def _compute_nlive(self, logL_birth):
+    def importance_sample(self, logL_new, action='add', inplace=False):
+        """Perform importance re-weighting on the log-likelihood.
+
+        Parameters
+        ----------
+        logL_new: np.array
+            New log-likelihood values. Should have the same shape as `logL`.
+
+        action: str, optional
+            Can be any of {'add', 'replace', 'mask'}.
+                * add: Add the new `logL_new` to the current `logL`.
+                * replace: Replace the current `logL` with the new `logL_new`.
+                * mask: treat `logL_new` as a boolean mask and only keep the
+                        corresponding (True) samples.
+            default: 'add'
+
+        inplace: bool, optional
+            Indicates whether to modify the existing array, or return a new
+            frame with importance sampling applied.
+            default: False
+
+        Returns
+        -------
+        samples: NestedSamples
+            Importance re-weighted samples.
+        """
+        samples = super().importance_sample(logL_new, action=action)
+        samples = samples[samples.logL > samples.logL_birth].recompute()
+        return modify_inplace(self, samples, inplace)
+
+    def recompute(self, logL_birth=None, inplace=False):
+        """Re-calculate the nested sampling contours and live points.
+
+        Parameters
+        ----------
+        logL_birth, array-like or int, optional
+            array-like: the birth contours.
+            int: the number of live points.
+            default: use the existing birth contours to compute nlive
+
+        inplace: bool, optional
+            Indicates whether to modify the existing array, or return a new
+            frame with contours resorted and nlive recomputed
+            default: False
+        """
+        samples = self.sort_values('logL').reset_index(drop=True)
+
         if is_int(logL_birth):
             nlive = logL_birth
-            self['nlive'] = nlive
+            samples['nlive'] = nlive
             descending = np.arange(nlive, 0, -1)
-            self.loc[len(self)-nlive:, 'nlive'] = descending
+            samples.loc[len(samples)-nlive:, 'nlive'] = descending
         else:
-            self['logL_birth'] = logL_birth
-            self.tex['logL_birth'] = r'$\log\mathcal{L}_{\rm birth}$'
-            self['nlive'] = compute_nlive(self.logL, self.logL_birth)
+            if logL_birth is not None:
+                samples['logL_birth'] = logL_birth
+                samples.tex['logL_birth'] = r'$\log\mathcal{L}_{\rm birth}$'
 
-        self.tex['nlive'] = r'$n_{\rm live}$'
-        self.beta = self._beta
+            if 'logL_birth' not in samples:
+                raise RuntimeError("Cannot recompute run without "
+                                   "birth contours logL_birth.")
+
+            if (samples.logL <= samples.logL_birth).any():
+                raise RuntimeError("Not a valid nested sampling run. "
+                                   "Require logL > logL_birth.")
+
+            samples['nlive'] = compute_nlive(samples.logL, samples.logL_birth)
+
+        samples.tex['nlive'] = r'$n_{\rm live}$'
+        samples.beta = samples._beta
+        return modify_inplace(self, samples, inplace)
 
     def _compute_insertion_indexes(self):
         self['insertion'] = compute_insertion_indexes(self.logL.values,
@@ -641,19 +752,20 @@ class NestedSamples(MCMCSamples):
 
 
 def merge_nested_samples(runs):
-    """Merge two or more nested sampling runs.
+    """Merge one or more nested sampling runs.
 
     Parameters
     ----------
     runs: list(NestedSamples)
-        list or array-like of nested sampling runs.
+        List or array-like of one or more nested sampling runs.
+        If only a single run is provided, this recalculates the live points and
+        as such can be used for masked runs.
 
     Returns
     -------
     samples: NestedSamples
         Merged run.
     """
-    samples = pandas.concat(runs, ignore_index=True)
-    samples = samples.sort_values('logL').reset_index(drop=True)
-    samples._compute_nlive(samples.logL_birth)
-    return samples
+    merge = pandas.concat(runs, ignore_index=True)
+    merge.tex = {key: val for r in runs for key, val in r.tex.items()}
+    return merge.recompute()

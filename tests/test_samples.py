@@ -12,6 +12,7 @@ from numpy.testing import (assert_array_equal, assert_array_almost_equal,
                            assert_array_less)
 from matplotlib.colors import to_hex
 from scipy.stats import ks_2samp, kstest
+from wedding_cake import WeddingCake
 try:
     import montepython  # noqa: F401
 except ImportError:
@@ -218,6 +219,13 @@ def test_plot_2d_types():
     fig, axes = ns.plot_2d(params, types={'lower': 'kde', 'diagonal': 'kde',
                                           'upper': 'scatter'})
     assert((~axes.isnull()).sum().sum() == 12)
+
+    with pytest.raises(NotImplementedError):
+        fig, axes = ns.plot_2d(params, types={'lower': 'not a plot type'})
+
+    with pytest.raises(NotImplementedError):
+        fig, axes = ns.plot_2d(params, types={'diagonal': 'not a plot type'})
+
     plt.close("all")
 
 
@@ -493,6 +501,7 @@ def test_merging():
             and samples.logZ() > samples_2.logZ()
             or samples.logZ() > samples_1.logZ()
             and samples.logZ() < samples_2.logZ())
+    assert 'x0' in samples.tex
 
 
 def test_beta():
@@ -539,9 +548,9 @@ def test_live_points():
     np.random.seed(4)
     pc = NestedSamples(root="./tests/example_data/pc")
 
-    for i, logL in pc.logL.iteritems():
+    for i, logL in pc.logL.iloc[:-1].iteritems():
         live_points = pc.live_points(logL)
-        assert len(live_points) == int(pc.nlive[i])
+        assert len(live_points) == int(pc.nlive[i[0]+1])
 
         live_points_from_int = pc.live_points(i[0])
         assert_array_equal(live_points_from_int, live_points)
@@ -573,7 +582,7 @@ def test_limit_assignment():
     # limits for logL, weights, nlive
     assert ns.limits['logL'][0] == -777.0115456428716
     assert ns.limits['logL'][1] == 5.748335384373301
-    assert ns.limits['nlive'][0] == 0
+    assert ns.limits['nlive'][0] == 1
     assert ns.limits['nlive'][1] == 125
 
 
@@ -638,3 +647,171 @@ def test_posterior_points():
     ns = NestedSamples(root='./tests/example_data/pc')
     assert_array_equal(ns.posterior_points(), ns.posterior_points())
     assert_array_equal(ns.posterior_points(0.5), ns.posterior_points(0.5))
+
+
+def test_NestedSamples_importance_sample():
+    np.random.seed(3)
+    ns0 = NestedSamples(root='./tests/example_data/pc')
+    pi0 = ns0.set_beta(0)
+    NS0 = ns0.ns_output(nsamples=2000)
+
+    with pytest.raises(NotImplementedError):
+        ns0.importance_sample(ns0.logL, action='spam')
+
+    ns_masked = ns0.importance_sample(ns0.logL, action='replace')
+    assert_array_equal(ns0.logL, ns_masked.logL)
+    assert_array_equal(ns0.logL_birth, ns_masked.logL_birth)
+    assert_array_equal(ns0.weights, ns_masked.weights)
+
+    ns_masked = ns0.importance_sample(np.zeros_like(ns0.logL), action='add')
+    assert_array_equal(ns0.logL, ns_masked.logL)
+    assert_array_equal(ns0.logL_birth, ns_masked.logL_birth)
+    assert_array_equal(ns0.weights, ns_masked.weights)
+
+    mask = ((ns0.x0 > -0.3) & (ns0.x2 > 0.2) & (ns0.x4 < 3.5)).to_numpy()
+    ns_masked = merge_nested_samples((ns0[mask], ))
+    V_prior = pi0[mask].weights.sum() / pi0.weights.sum()
+    V_posterior = ns0[mask].weights.sum() / ns0.weights.sum()
+
+    ns1 = ns0.importance_sample(mask, action='mask')
+    assert_array_equal(ns_masked.logL, ns1.logL)
+    assert_array_equal(ns_masked.logL_birth, ns1.logL_birth)
+    assert_array_equal(ns_masked.weights, ns1.weights)
+
+    logL_new = np.where(mask, 0, -np.inf)
+    ns1 = ns0.importance_sample(logL_new)
+    NS1 = ns1.ns_output(nsamples=2000)
+    assert_array_equal(ns1, ns_masked)
+    logZ_V = NS0.logZ.mean() + np.log(V_posterior) - np.log(V_prior)
+    assert abs(NS1.logZ.mean() - logZ_V) < 1.5 * NS1.logZ.std()
+
+    logL_new = np.where(mask, 0, -1e30)
+    ns1 = ns0.importance_sample(logL_new)
+    NS1 = ns1.ns_output(nsamples=2000)
+    logZ_V = NS0.logZ.mean() + np.log(V_posterior)
+    assert abs(NS1.logZ.mean() - logZ_V) < 1.5 * NS1.logZ.std()
+
+    ns0.importance_sample(logL_new, inplace=True)
+    assert type(ns0) is NestedSamples
+    assert_array_equal(ns0, ns1)
+    assert ns0.tex == ns1.tex
+    assert ns0.limits == ns1.limits
+    assert ns0.root == ns1.root
+    assert ns0.label == ns1.label
+    assert ns0.beta == ns1.beta
+    assert ns0 is not ns1
+    assert ns0.tex is not ns1.tex
+    assert ns0.limits is not ns1.limits
+
+
+def test_MCMCSamples_importance_sample():
+    np.random.seed(3)
+    mc0 = MCMCSamples(root='./tests/example_data/gd')
+
+    with pytest.raises(NotImplementedError):
+        mc0.importance_sample(mc0.logL, action='spam')
+
+    mc_masked = mc0.importance_sample(mc0.logL, action='replace')
+    assert_array_equal(mc0.logL, mc_masked.logL)
+    assert_array_equal(mc0.weights, mc_masked.weights)
+
+    mc_masked = mc0.importance_sample(np.zeros_like(mc0.logL), action='add')
+    assert_array_equal(mc0.logL, mc_masked.logL)
+    assert_array_equal(mc0.weights, mc_masked.weights)
+
+    mask = ((mc0.x0 > -0.3) & (mc0.x2 > 0.2) & (mc0.x4 < 3.5)).to_numpy()
+    mc_masked = mc0[mask]
+
+    mc1 = mc0.importance_sample(mask, action='mask')
+    assert_array_equal(mc_masked.logL, mc1.logL)
+    assert_array_equal(mc_masked.weights, mc1.weights)
+    assert mc0.tex == mc1.tex
+    assert mc0.limits == mc1.limits
+    assert mc0.root == mc1.root
+    assert mc0.label == mc1.label
+    assert mc1._metadata == mc0._metadata
+    assert mc0 is not mc1
+    assert mc0.tex is not mc1.tex
+    assert mc0.limits is not mc1.limits
+
+    mc0.importance_sample(mask, action='mask', inplace=True)
+    assert type(mc0) is MCMCSamples
+    assert_array_equal(mc0, mc1)
+    assert mc0.tex == mc1.tex
+    assert mc0.limits == mc1.limits
+    assert mc0.root == mc1.root
+    assert mc0.label == mc1.label
+    assert mc1._metadata == mc0._metadata
+    assert mc0 is not mc1
+    assert mc0.tex is not mc1.tex
+    assert mc0.limits is not mc1.limits
+
+
+def test_wedding_cake():
+    np.random.seed(3)
+    wc = WeddingCake(4, 0.5, 0.01)
+    nlive = 500
+    samples = wc.sample(nlive)
+    assert samples.nlive.iloc[0] == nlive
+    assert samples.nlive.iloc[-1] == 1
+    assert (samples.nlive <= nlive).all()
+    out = samples.logZ(100)
+    assert abs(out.mean()-wc.logZ()) < out.std()*3
+
+
+def test_logzero_mask_prior_level():
+    np.random.seed(3)
+    ns0 = NestedSamples(root='./tests/example_data/pc')
+    pi0 = ns0.set_beta(0)
+    NS0 = ns0.ns_output(nsamples=2000)
+    mask = ((ns0.x0 > -0.3) & (ns0.x2 > 0.2) & (ns0.x4 < 3.5)).to_numpy()
+
+    V_prior = pi0[mask].weights.sum() / pi0.weights.sum()
+    V_posterior = ns0[mask].weights.sum() / ns0.weights.sum()
+    logZ_V = NS0.logZ.mean() + np.log(V_posterior) - np.log(V_prior)
+
+    ns1 = merge_nested_samples((ns0[mask],))
+    NS1 = ns1.ns_output(nsamples=2000)
+
+    assert abs(NS1.logZ.mean() - logZ_V) < 1.5 * NS1.logZ.std()
+
+
+def test_logzero_mask_likelihood_level():
+    np.random.seed(3)
+    ns0 = NestedSamples(root='./tests/example_data/pc')
+    NS0 = ns0.ns_output(nsamples=2000)
+    mask = ((ns0.x0 > -0.3) & (ns0.x2 > 0.2) & (ns0.x4 < 3.5)).to_numpy()
+
+    V_posterior = ns0[mask].weights.sum() / ns0.weights.sum()
+    logZ_V = NS0.logZ.mean() + np.log(V_posterior)
+
+    ns1 = NestedSamples(root='./tests/example_data/pc')
+    ns1.logL = np.where(mask, ns1.logL, -1e30)
+    ns1 = merge_nested_samples((ns1[ns1.logL > ns1.logL_birth],))
+    NS1 = ns1.ns_output(nsamples=2000)
+
+    assert abs(NS1.logZ.mean() - logZ_V) < 1.5 * NS1.logZ.std()
+
+
+def test_recompute():
+    np.random.seed(3)
+    pc = NestedSamples(root='./tests/example_data/pc')
+    recompute = pc.recompute()
+    assert recompute is not pc
+
+    pc.loc[1000, 'logL'] = pc.logL_birth.iloc[1000]-1
+    with pytest.raises(RuntimeError):
+        pc.recompute()
+
+    mn = NestedSamples(root='./tests/example_data/mn_old')
+    with pytest.raises(RuntimeError):
+        mn.recompute()
+
+
+def test_copy():
+    np.random.seed(3)
+    pc = NestedSamples(root='./tests/example_data/pc')
+    new = pc.copy()
+    assert new is not pc
+    assert new.tex is not pc.tex
+    assert new.limits is not pc.limits

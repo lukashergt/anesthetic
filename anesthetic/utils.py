@@ -6,6 +6,7 @@ from scipy.interpolate import interp1d
 from scipy.stats import kstwobign
 from matplotlib.tri import Triangulation
 import contextlib
+import copy
 
 
 def logsumexp(a, axis=None, b=None, keepdims=False, return_sign=False):
@@ -182,13 +183,13 @@ def compute_nlive(death, birth):
     nlive: np.array
         number of live points at each contour
     """
-    birth_index = death.searchsorted(birth)
+    birth_index = death.searchsorted(birth, side='right')
     births = pandas.Series(+1, index=birth_index).sort_index()
-    index = np.arange(death.size)
+    index = np.arange(death.size)+1
     deaths = pandas.Series(-1, index=index)
     nlive = pandas.concat([births, deaths]).sort_index()
     nlive = nlive.groupby(nlive.index).sum().cumsum()
-    return nlive.values
+    return nlive.values[:-1]
 
 
 def compute_insertion_indexes(death, birth):
@@ -476,3 +477,11 @@ def temporary_seed(seed):
         yield
     finally:
         np.random.set_state(state)
+
+
+def modify_inplace(orig, new, inplace):
+    """Conditionally modify object inplace or return."""
+    if inplace:
+        orig.__dict__ = copy.deepcopy(new.__dict__)
+    else:
+        return new
