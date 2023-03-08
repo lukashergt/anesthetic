@@ -977,8 +977,7 @@ def hist_plot_1d(ax, data, *args, **kwargs):
 
     if type(bins) == str and bins in ['knuth', 'freedman', 'blocks']:
         try:
-            h, edges, bars = hist(data, ax=ax, bins=bins,
-                                  range=(xmin, xmax), histtype=histtype,
+            h, edges, bars = hist(data, ax=ax, bins=bins, histtype=histtype,
                                   color=color, *args, **kwargs)
         except NameError:
             raise ImportError("You need to install astropy to use astropyhist")
