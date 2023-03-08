@@ -322,6 +322,9 @@ class Samples(WeightedLabelledDataFrame):
                              "the following string shortcuts: "
                              f"{list(self.plot_2d_default_kinds.keys())}")
 
+        margin = kwargs.pop('margin', {})
+        if isinstance(margin, float):
+            margin = {key: margin for key, _ in self.columns}
         local_kwargs = {pos: kwargs.pop('%s_kwargs' % pos, {})
                         for pos in ['upper', 'lower', 'diagonal']}
         kwargs['label'] = kwargs.get('label', self.label)
@@ -359,12 +362,16 @@ class Samples(WeightedLabelledDataFrame):
                     if x in self and y in self and lkwargs['kind'] is not None:
                         xlabel = self.get_label(x)
                         ylabel = self.get_label(y)
+                        if x in margin:
+                            lkwargs['xmargin'] = margin[x]
                         if x == y:
                             self[x].plot(ax=ax.twin, xlabel=xlabel,
                                          *args, **lkwargs)
                             ax.set_xlabel(xlabel)
                             ax.set_ylabel(ylabel)
                         else:
+                            if y in margin:
+                                lkwargs['ymargin'] = margin[y]
                             self.plot(x, y, ax=ax, xlabel=xlabel,
                                       ylabel=ylabel, *args, **lkwargs)
                             ax.set_xlabel(xlabel)

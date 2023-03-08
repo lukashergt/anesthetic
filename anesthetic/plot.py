@@ -746,6 +746,13 @@ def fastkde_plot_1d(ax, data, *args, **kwargs):
     kwargs = normalize_kwargs(kwargs)
     xmin = kwargs.pop('xmin', None)
     xmax = kwargs.pop('xmax', None)
+    xmargin = kwargs.pop('xmargin', 0)
+    if xmargin:
+        if isinstance(xmargin, int) or isinstance(xmargin, float):
+            xmargin = (xmargin, xmargin)
+        xdelta = xmax - xmin
+        xmin -= xmargin[0] * xdelta
+        xmax += xmargin[1] * xdelta
     levels = kwargs.pop('levels', [0.95, 0.68])
     density = kwargs.pop('density', False)
 
@@ -870,6 +877,13 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     q = quantile_plot_interval(q=q)
     xmin = quantile(data, q[0], weights)
     xmax = quantile(data, q[-1], weights)
+    xmargin = kwargs.pop('xmargin', 0)
+    if xmargin:
+        if isinstance(xmargin, int) or isinstance(xmargin, float):
+            xmargin = (xmargin, xmargin)
+        xdelta = xmax - xmin
+        xmin -= xmargin[0] * xdelta
+        xmax += xmargin[1] * xdelta
     x = np.linspace(xmin, xmax, nplot)
 
     data_compressed, w = sample_compression_1d(data, weights, ncompress)
@@ -953,6 +967,13 @@ def hist_plot_1d(ax, data, *args, **kwargs):
     q = quantile_plot_interval(q=q)
     xmin = quantile(data, q[0], weights)
     xmax = quantile(data, q[-1], weights)
+    xmargin = kwargs.pop('xmargin', 0)
+    if xmargin:
+        if isinstance(xmargin, int) or isinstance(xmargin, float):
+            xmargin = (xmargin, xmargin)
+        xdelta = xmax - xmin
+        xmin -= xmargin[0] * xdelta
+        xmax += xmargin[1] * xdelta
 
     if type(bins) == str and bins in ['knuth', 'freedman', 'blocks']:
         try:
@@ -1019,6 +1040,20 @@ def fastkde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     xmax = kwargs.pop('xmax', None)
     ymin = kwargs.pop('ymin', None)
     ymax = kwargs.pop('ymax', None)
+    xmargin = kwargs.pop('xmargin', 0)
+    ymargin = kwargs.pop('ymargin', 0)
+    if xmargin or ymargin:
+        if isinstance(xmargin, int) or isinstance(xmargin, float):
+            xmargin = (xmargin, xmargin)
+        if isinstance(ymargin, int) or isinstance(ymargin, float):
+            ymargin = (ymargin, ymargin)
+        xdelta = xmax - xmin
+        ydelta = ymax - ymin
+        xmin -= xmargin[0] * xdelta
+        xmax += xmargin[1] * xdelta
+        ymin -= ymargin[0] * ydelta
+        ymax += ymargin[1] * ydelta
+
     label = kwargs.pop('label', None)
     zorder = kwargs.pop('zorder', 1)
     levels = kwargs.pop('levels', [0.95, 0.68])
@@ -1144,14 +1179,25 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     facecolor, edgecolor, cmap = set_colors(c=color, fc=facecolor,
                                             ec=edgecolor, cmap=cmap)
 
-    kwargs.pop('q', None)
-
     q = kwargs.pop('q', 5)
     q = quantile_plot_interval(q=q)
     xmin = quantile(data_x, q[0], weights)
     xmax = quantile(data_x, q[-1], weights)
     ymin = quantile(data_y, q[0], weights)
     ymax = quantile(data_y, q[-1], weights)
+    xmargin = kwargs.pop('xmargin', 0)
+    ymargin = kwargs.pop('ymargin', 0)
+    if xmargin or ymargin:
+        if isinstance(xmargin, int) or isinstance(xmargin, float):
+            xmargin = (xmargin, xmargin)
+        if isinstance(ymargin, int) or isinstance(ymargin, float):
+            ymargin = (ymargin, ymargin)
+        xdelta = xmax - xmin
+        ydelta = ymax - ymin
+        xmin -= xmargin[0] * xdelta
+        xmax += xmargin[1] * xdelta
+        ymin -= ymargin[0] * ydelta
+        ymax += ymargin[1] * ydelta
     X, Y = np.mgrid[xmin:xmax:1j*np.sqrt(nplot), ymin:ymax:1j*np.sqrt(nplot)]
 
     cov = np.cov(data_x, data_y, aweights=weights)
@@ -1163,10 +1209,12 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
 
     bw_x = np.sqrt(kde.covariance[0, 0])
     P = cut_and_normalise_gaussian(X, P, bw=bw_x,
-                                   xmin=data_x.min(), xmax=data_x.max())
+                                   xmin=min((data_x.min(), xmin)),
+                                   xmax=max((data_x.max(), xmax)))
     bw_y = np.sqrt(kde.covariance[1, 1])
     P = cut_and_normalise_gaussian(Y, P, bw=bw_y,
-                                   xmin=data_y.min(), xmax=data_y.max())
+                                   xmin=min((data_y.min(), ymin)),
+                                   xmax=max((data_y.max(), ymax)))
 
     levels = iso_probability_contours(P, contours=levels)
 
@@ -1246,6 +1294,19 @@ def hist_plot_2d(ax, data_x, data_y, *args, **kwargs):
     xmax = quantile(data_x, q[-1], weights)
     ymin = quantile(data_y, q[0], weights)
     ymax = quantile(data_y, q[-1], weights)
+    xmargin = kwargs.pop('xmargin', 0)
+    ymargin = kwargs.pop('ymargin', 0)
+    if xmargin or ymargin:
+        if isinstance(xmargin, int) or isinstance(xmargin, float):
+            xmargin = (xmargin, xmargin)
+        if isinstance(ymargin, int) or isinstance(ymargin, float):
+            ymargin = (ymargin, ymargin)
+        xdelta = xmax - xmin
+        ydelta = ymax - ymin
+        xmin -= xmargin[0] * xdelta
+        xmax += xmargin[1] * xdelta
+        ymin -= ymargin[0] * ydelta
+        ymax += ymargin[1] * ydelta
     rge = kwargs.pop('range', ((xmin, xmax), (ymin, ymax)))
 
     if levels is None:
@@ -1298,6 +1359,8 @@ def scatter_plot_2d(ax, data_x, data_y, *args, **kwargs):
         :meth:`matplotlib.axes.Axes.plot` command).
 
     """
+    kwargs.pop('xmargin', None)
+    kwargs.pop('ymargin', None)
     kwargs = normalize_kwargs(
         kwargs,
         alias_mapping=dict(lw=['linewidth', 'linewidths'],
