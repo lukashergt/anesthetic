@@ -979,6 +979,7 @@ def hist_plot_1d(ax, data, *args, **kwargs):
         try:
             h, edges, bars = hist(data, ax=ax, bins=bins, histtype=histtype,
                                   color=color, *args, **kwargs)
+            ax.set_xlim(xmin, xmax)
         except NameError:
             raise ImportError("You need to install astropy to use astropyhist")
     else:
