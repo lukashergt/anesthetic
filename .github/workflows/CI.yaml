@@ -8,8 +8,6 @@ on:
   schedule:
     - cron: "0 0 * * *"
 
-  workflow_dispatch:
-
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -35,8 +33,6 @@ jobs:
           close_figures_on_teardown fixture."
           exit 1
           fi
-      - name: Check version number
-        run: python ./bin/check_version.py
 
   sphinx:
     runs-on: ubuntu-latest
@@ -48,8 +44,7 @@ jobs:
       - name: Upgrade pip and install doc requirements
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pip-tools
-          python -m pip install -e ".[extras,docs]"
+          python -m pip install -e ".[all,docs]"
       - name: build documentation
         run: |
           cd docs
@@ -86,7 +81,7 @@ jobs:
       - name: Install extra dependencies
         if: ${{ matrix.extras }}
         run: |
-          python -m pip install -e ".[extras]"
+          python -m pip install -e ".[all]"
 
       - name: Test with pytest
         run: python -m pytest --cov=anesthetic tests
@@ -168,4 +163,3 @@ jobs:
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1
-

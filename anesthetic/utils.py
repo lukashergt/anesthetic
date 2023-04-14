@@ -320,7 +320,7 @@ def triangular_sample_compression_2d(x, y, cov, w=None, n=1000):
         Compressed samples and weights
     """
     # Pre-process samples to not be affected by non-standard indexing
-    # Details: https://github.com/williamjameshandley/anesthetic/issues/189
+    # Details: https://github.com/handley-lab/anesthetic/issues/189
     x = np.array(x)
     y = np.array(y)
 
@@ -532,8 +532,9 @@ def adjust_docstrings(cls, pattern, repl, *args, **kwargs):
     """
     for key, val in cls.__dict__.items():
         doc = inspect.getdoc(val)
-        newdoc = re.sub(pattern, repl, doc, *args, **kwargs)
-        try:
-            cls.__dict__[key].__doc__ = newdoc
-        except AttributeError:
-            pass
+        if doc is not None:
+            newdoc = re.sub(pattern, repl, doc, *args, **kwargs)
+            try:
+                cls.__dict__[key].__doc__ = newdoc
+            except AttributeError:
+                pass

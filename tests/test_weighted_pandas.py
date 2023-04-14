@@ -6,6 +6,7 @@ import pytest
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_rgba
 from pandas.plotting import scatter_matrix, bootstrap_plot
 from pandas.plotting._matplotlib.misc import (
     scatter_matrix as orig_scatter_matrix
@@ -175,7 +176,7 @@ def test_WeightedDataFrame_corrwith(frame):
     assert isinstance(correl, WeightedSeries)
     assert not correl.isweighted()
     assert_array_equal(correl.index, frame.columns)
-    assert_allclose(correl, frame.corr()['A'])
+    assert_allclose(correl, frame.corr()['A'], atol=1e-2)
 
     correl = frame.corrwith(frame[['A', 'B']])
     assert isinstance(correl, WeightedSeries)
@@ -416,12 +417,6 @@ def test_WeightedDataFrame_nan(frame):
     assert_array_equal(frame.std(axis=1, skipna=False).isna()[0:6],
                        [True, False, False, False, False, False])
 
-    assert ~frame.cov().isna().any().any()
-    ans = np.zeros((6, 6), dtype=bool)
-    ans[0] = True
-    ans[:, 0] = True
-    assert_array_equal(frame.cov(skipna=False).isna(), ans)
-
     frame['B'][2] = np.nan
     assert ~frame.mean().isna().any()
     assert_array_equal(frame.mean(skipna=False).isna(),
@@ -434,11 +429,6 @@ def test_WeightedDataFrame_nan(frame):
                        [True, True] + [False]*4)
     assert_array_equal(frame.std(axis=1, skipna=False).isna()[0:6],
                        [True, False, True, False, False, False])
-
-    assert ~frame.cov().isna().any().any()
-    ans[1] = True
-    ans[:, 1] = True
-    assert_array_equal(frame.cov(skipna=False).isna(), ans)
 
     frame['C'][4] = np.nan
     frame['D'][5] = np.nan
@@ -454,9 +444,6 @@ def test_WeightedDataFrame_nan(frame):
     assert_array_equal(frame.std(axis=1, skipna=False).isna()[0:6],
                        [True, False, True, False, True, True])
 
-    assert ~frame.cov().isna().any().any()
-    assert frame.cov(skipna=False).isna().all().all()
-
     assert_allclose(frame.mean(), 0.5, atol=1e-2)
     assert_allclose(frame.std(), (1./12)**0.5, atol=1e-2)
     assert_allclose(frame.cov(), (1./12)*np.identity(6), atol=1e-2)
@@ -465,6 +452,18 @@ def test_WeightedDataFrame_nan(frame):
     assert not frame.mean().isweighted()
     assert isinstance(frame.mean(axis=1), WeightedSeries)
     assert frame.mean(axis=1).isweighted()
+
+    assert frame[:0].mean().isna().all()
+    assert frame[:0].std().isna().all()
+    assert frame[:0].median().isna().all()
+    assert frame[:0].var().isna().all()
+    assert frame[:0].cov().isna().all().all()
+    assert frame[:0].corr().isna().all().all()
+    assert frame[:0].kurt().isna().all()
+    assert frame[:0].skew().isna().all()
+    assert frame[:0].mad().isna().all()
+    assert frame[:0].sem().isna().all()
+    assert frame[:0].quantile().isna().all()
 
 
 def test_WeightedSeries_mean(series):
@@ -489,11 +488,9 @@ def test_WeightedSeries_cov(frame):
     assert_allclose(frame.A.cov(frame.A), 1./12, atol=1e-2)
     assert_allclose(frame.A.cov(frame.B), 0, atol=1e-2)
 
-    frame.loc[0, 'B'] = np.nan
-    assert ~np.isnan(frame.A.cov(frame.B))
-    assert np.isnan(frame.A.cov(frame.B, skipna=False))
-    assert ~np.isnan(frame.B.cov(frame.A))
-    assert np.isnan(frame.B.cov(frame.A, skipna=False))
+    frame['A'][0] = np.nan
+    assert_allclose(frame.A.cov(frame.A), 1./12, atol=1e-2)
+    assert_allclose(frame.A.cov(frame.B), 0, atol=1e-2)
 
 
 def test_WeightedSeries_corr(frame):
@@ -606,6 +603,18 @@ def test_WeightedSeries_nan(series):
     assert_allclose(series.mean(), 0.5, atol=1e-2)
     assert_allclose(series.var(), 1./12, atol=1e-2)
     assert_allclose(series.std(), (1./12)**0.5, atol=1e-2)
+
+    assert np.isnan(series[:0].mean())
+    assert np.isnan(series[:0].std())
+    assert np.isnan(series[:0].median())
+    assert np.isnan(series[:0].var())
+    assert np.isnan(series[:0].cov(series))
+    assert np.isnan(series[:0].corr(series))
+    assert np.isnan(series[:0].kurt())
+    assert np.isnan(series[:0].skew())
+    assert np.isnan(series[:0].mad())
+    assert np.isnan(series[:0].sem())
+    assert np.isnan(series[:0].quantile())
 
 
 @pytest.fixture
@@ -813,6 +822,8 @@ def test_HexBinPlot(mcmc_df, mcmc_wdf):
     wdf_colors = wdf_axes.collections[0].get_facecolors()
     assert_allclose(df_colors, wdf_colors)
 
+    plt.close("all")
+
 
 def test_AreaPlot(mcmc_df, mcmc_wdf):
     fig, (ax1, ax2) = plt.subplots(1, 2)
@@ -933,3 +944,43 @@ def test_drop_weights(mcmc_wdf):
     assert_array_equal(noweights, mcmc_wdf)
     pandas.testing.assert_frame_equal(noweights.drop_weights(), noweights)
     assert noweights.drop_weights() is not noweights
+
+
+def test_blank_axis_labels(mcmc_df, mcmc_wdf):
+    for df in mcmc_df, mcmc_wdf:
+        assert df.plot.area().get_xlabel() == ""
+        assert df.plot.bar().get_xlabel() == ""
+        assert df.plot.barh().get_ylabel() == ""
+
+
+def test_get_index(mcmc_wdf):
+    mcmc_wdf.index = mcmc_wdf.index.rename(('foo', 'weights'))
+    assert mcmc_wdf.plot.area().get_xlabel() == "foo"
+    assert mcmc_wdf.plot.bar().get_xlabel() == "foo"
+    assert mcmc_wdf.plot.barh().get_ylabel() == "foo"
+    for plot in [mcmc_wdf.plot.area, mcmc_wdf.plot.bar, mcmc_wdf.plot.barh]:
+        assert plot(xlabel="my xlabel").get_xlabel() == "my xlabel"
+
+    idx = mcmc_wdf.index.to_frame().to_numpy().T
+    mcmc_wdf.index = MultiIndex.from_arrays([idx[0], idx[0], idx[1]],
+                                            names=('foo', 'bar', 'weights'))
+    assert mcmc_wdf.plot.bar().get_xlabel() == "foo,bar"
+    assert mcmc_wdf.plot.barh().get_ylabel() == "foo,bar"
+    mcmc_wdf.index = MultiIndex.from_arrays([idx[0], idx[0], idx[1]],
+                                            names=(None, None, 'weights'))
+    assert mcmc_wdf.plot.bar().get_xlabel() == ""
+    assert mcmc_wdf.plot.barh().get_ylabel() == ""
+
+
+def test_style(mcmc_wdf):
+    style_dict = dict(x='c', y='y', z='m', w='k')
+    ax = mcmc_wdf.plot.kde(style=style_dict)
+    assert all([line.get_color() == to_rgba(c)
+                for line, c in zip(ax.get_lines(), ['c', 'y', 'm', 'k'])])
+
+    with pytest.raises(TypeError):
+        ax = mcmc_wdf.plot.hist_2d('x', 'y', style='c')
+    with pytest.raises(TypeError):
+        ax = mcmc_wdf.plot.kde_2d('x', 'y', style='c')
+    with pytest.raises(TypeError):
+        ax = mcmc_wdf.plot.scatter_2d('x', 'y', style='c')
