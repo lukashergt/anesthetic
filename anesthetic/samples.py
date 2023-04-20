@@ -664,7 +664,7 @@ class NestedSamples(Samples):
     _metadata = Samples._metadata + ['root', '_beta']
 
     def __init__(self, *args, **kwargs):
-        logzero = kwargs.pop('logzero', -1e30)
+        logzero = kwargs.pop('logzero', -1e29)
         self._beta = kwargs.pop('beta', 1.)
         logL_birth = kwargs.pop('logL_birth', None)
         if not isinstance(logL_birth, int) and logL_birth is not None:
@@ -732,7 +732,7 @@ class NestedSamples(Samples):
             " as well as average loglikelihoods: help(samples.logL_P)"
             )
 
-    def stats(self, nsamples=None, beta=None):
+    def stats(self, nsamples=None, beta=None, base=None):
         r"""Compute Nested Sampling statistics.
 
         Using nested sampling we can compute:
@@ -832,6 +832,18 @@ class NestedSamples(Samples):
         samples.set_label('d_G', r'$d_\mathrm{G}$')
 
         samples.label = self.label
+
+        if base is None:
+            samples['DeltalogZ'] = samples.logZ - samples.logZ.mean()
+            samples['DeltaD_KL'] = samples.D_KL - samples.D_KL.mean()
+            samples['DeltalogL_P'] = samples.logL_P - samples.logL_P.mean()
+            samples['Deltad_G'] = samples.d_G - samples.d_G.mean()
+        else:
+            samples['DeltalogZ'] = samples.logZ - base.logZ.mean()
+            samples['DeltaD_KL'] = samples.D_KL - base.D_KL.mean()
+            samples['DeltalogL_P'] = samples.logL_P - base.logL_P.mean()
+            samples['Deltad_G'] = samples.d_G - base.d_G.mean()
+
         return samples
 
     def logX(self, nsamples=None):
@@ -1201,8 +1213,12 @@ class NestedSamples(Samples):
                               "errors at the peak of the likelihood, but "
                               "further investigation of the chains files is "
                               "recommended."
-                              "\nDropping the invalid samples." %
-                              (n_bad, len(samples), n_equal),
+                              "\nDropping the invalid samples. "
+                              "\nlogL=%s"
+                              "\nlogL_birth=%s" %
+                              (n_bad, len(samples), n_equal,
+                               samples.logL[invalid],
+                               samples.logL_birth[invalid]),
                               RuntimeWarning)
                 samples = samples[~invalid].reset_index(drop=True)
 
