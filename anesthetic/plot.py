@@ -894,7 +894,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     p = kde(x)
     p /= p.max()
     bw = np.sqrt(kde.covariance[0, 0])
-    pp = cut_and_normalise_gaussian(x, p, bw, xmin=data.min(), xmax=data.max())
+    pp = cut_and_normalise_gaussian(x, p, bw, xmin=xmin, xmax=xmax)
     pp /= pp.max()
     area = np.trapz(x=x, y=pp) if density else 1
     ans = ax.plot(x, pp/area, color=color, *args, **kwargs)

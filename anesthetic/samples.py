@@ -843,6 +843,11 @@ class NestedSamples(Samples):
             samples['DeltaD_KL'] = samples.D_KL - base.D_KL.mean()
             samples['DeltalogL_P'] = samples.logL_P - base.logL_P.mean()
             samples['Deltad_G'] = samples.d_G - base.d_G.mean()
+        samples.set_label('DeltalogZ', r'$\Delta\ln\mathcal{Z}$')
+        samples.set_label('DeltaD_KL', r'$\Delta\mathcal{D}_\mathrm{KL}$')
+        samples.set_label('DeltalogL_P',
+                          r'$\Delta\langle\ln\mathcal{L}\rangle_\mathcal{P}$')
+        samples.set_label('Deltad_G', r'$\Delta d_\mathrm{G}$')
 
         return samples
 
