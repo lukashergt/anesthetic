@@ -10,7 +10,7 @@ from pandas._libs.lib import no_default
 from pandas.util._exceptions import find_stack_level
 from pandas.util import hash_pandas_object
 from numpy.ma import masked_array
-from anesthetic.utils import (compress_weights, channel_capacity, quantile,
+from anesthetic.utils import (compress_weights, neff as neff_, quantile,
                               temporary_seed, adjust_docstrings)
 from pandas.core.dtypes.missing import notna
 
@@ -50,6 +50,9 @@ class WeightedGroupBy(GroupBy):
     def sem(self, *args, **kwargs):  # noqa: D102
         return self._add_weights("sem", *args, **kwargs)
 
+    def skew(self, *args, **kwargs):  # noqa: D102
+        return self._add_weights("skew", *args, **kwargs)
+
     def quantile(self, *args, **kwargs):  # noqa: D102
         return self._add_weights("quantile", *args, **kwargs)
 
@@ -57,20 +60,14 @@ class WeightedGroupBy(GroupBy):
         """Return the weights of the grouped samples."""
         return self.agg(lambda df: df.get_weights().sum())
 
-    def _make_wrapper(self, name):
-        _wrapper = super()._make_wrapper(name)
-
-        def wrapper(*args, **kwargs):
-            result = _wrapper(*args, **kwargs)
-            try:
-                index = result.index.get_level_values(self.keys)
-                weights = self.get_weights()[index]
-            except KeyError:
-                weights = self.get_weights()
-            return result.set_weights(weights, level=1)
-
-        wrapper.__name__ = name
-        return wrapper
+    def _op_via_apply(self, name, *args, **kwargs):
+        result = super()._op_via_apply(name, *args, **kwargs)
+        try:
+            index = result.index.get_level_values(self.keys)
+            weights = self.get_weights()[index]
+        except KeyError:
+            weights = self.get_weights()
+        return result.set_weights(weights, level=1)
 
 
 class WeightedSeriesGroupBy(WeightedGroupBy, SeriesGroupBy):
@@ -78,6 +75,9 @@ class WeightedSeriesGroupBy(WeightedGroupBy, SeriesGroupBy):
 
     def sample(self, *args, **kwargs):  # noqa: D102
         return super().sample(weights=self.obj.get_weights(), *args, **kwargs)
+
+    def cov(self, *args, **kwargs):  # noqa: D102
+        return self._op_via_apply("cov", *args, **kwargs)
 
 
 class WeightedDataFrameGroupBy(WeightedGroupBy, DataFrameGroupBy):
@@ -102,7 +102,6 @@ class WeightedDataFrameGroupBy(WeightedGroupBy, DataFrameGroupBy):
                 as_index=self.as_index,
                 sort=self.sort,
                 group_keys=self.group_keys,
-                squeeze=self.squeeze,
                 observed=self.observed,
                 mutated=self.mutated,
                 dropna=self.dropna,
@@ -117,7 +116,6 @@ class WeightedDataFrameGroupBy(WeightedGroupBy, DataFrameGroupBy):
                 selection=key,
                 sort=self.sort,
                 group_keys=self.group_keys,
-                squeeze=self.squeeze,
                 observed=self.observed,
                 dropna=self.dropna,
             )
@@ -126,6 +124,9 @@ class WeightedDataFrameGroupBy(WeightedGroupBy, DataFrameGroupBy):
 
     def sample(self, *args, **kwargs):  # noqa: D102
         return super().sample(weights=self.obj.get_weights(), *args, **kwargs)
+
+    def cov(self, *args, **kwargs):  # noqa: D102
+        return self._op_via_apply("cov", *args, **kwargs)
 
 
 class _WeightedObject(object):
@@ -224,7 +225,7 @@ class _WeightedObject(object):
     def neff(self, axis=0):
         """Effective number of samples."""
         if self.isweighted(axis):
-            return channel_capacity(self.get_weights(axis))
+            return neff_(self.get_weights(axis))
         else:
             return self.shape[axis]
 
@@ -325,10 +326,17 @@ class WeightedSeries(_WeightedObject, Series):
 
         Parameters
         ----------
-        ncompress : int, optional
-            effective number of samples after compression. If not supplied
-            (or True), then reduce to the channel capacity (theoretical optimum
-            compression). If <=0, then compress so that all weights are unity.
+        ncompress : int, str, default=True
+            Degree of compression.
+
+            * If ``True`` (default): reduce to the channel capacity
+              (theoretical optimum compression), equivalent to
+              ``ncompress='entropy'``.
+            * If ``> 0``: desired number of samples after compression.
+            * If ``<= 0``: compress so that all remaining weights are unity.
+            * If ``str``: determine number from the Huggins-Roy family of
+              effective samples in :func:`anesthetic.utils.neff`
+              with ``beta=ncompress``.
 
         """
         i = compress_weights(self.get_weights(), self._rand(), ncompress)
@@ -558,10 +566,17 @@ class WeightedDataFrame(_WeightedObject, DataFrame):
 
         Parameters
         ----------
-        ncompress : int, optional
-            effective number of samples after compression. If not supplied
-            (or True), then reduce to the channel capacity (theoretical optimum
-            compression). If <=0, then compress so that all weights are unity.
+        ncompress : int, str, default=True
+            Degree of compression.
+
+            * If ``True`` (default): reduce to the channel capacity
+              (theoretical optimum compression), equivalent to
+              ``ncompress='entropy'``.
+            * If ``> 0``: desired number of samples after compression.
+            * If ``<= 0``: compress so that all remaining weights are unity.
+            * If ``str``: determine number from the Huggins-Roy family of
+              effective samples in :func:`anesthetic.utils.neff`
+              with ``beta=ncompress``.
 
         """
         if self.isweighted(axis):

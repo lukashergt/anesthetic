@@ -61,7 +61,7 @@ class _WeightedMPLPlot(MPLPlot):
 
 def _compress_weights(kwargs, data):
     if isinstance(data, _WeightedObject):
-        return data.compress(kwargs.pop('ncompress', True))
+        return data.compress(kwargs.pop('ncompress', 'equal'))
     else:
         return data
 
@@ -104,6 +104,9 @@ class _PlanePlot2d(PlanePlot):
             raise TypeError("'style' keyword argument is not "
                             f"supported by {self._kind}")
         self._plot(ax, x, y, **kwds)
+
+    def _args_adjust(self):
+        pass
 
 
 class ScatterPlot2d(_CompressedMPLPlot, _PlanePlot2d):

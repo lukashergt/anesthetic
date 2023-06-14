@@ -815,11 +815,16 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     weights : np.array, optional
         Sample weights.
 
-    ncompress : int, default=False
+    ncompress : int, str, default=False
         Degree of compression.
-        If int: number of samples returned.
-        If True: compresses to the channel capacity.
-        If False: no compression.
+
+        * If ``False``: no compression.
+        * If ``True``: compresses to the channel capacity, equivalent to
+          ``ncompress='entropy'``.
+        * If ``int``: desired number of samples after compression.
+        * If ``str``: determine number from the Huggins-Roy family of
+          effective samples in :func:`anesthetic.utils.neff`
+          with ``beta=ncompress``.
 
     nplot_1d : int, default=100
         Number of plotting points to use.
@@ -843,6 +848,9 @@ def kde_plot_1d(ax, data, *args, **kwargs):
 
     bw_method : str, scalar or callable, optional
         Forwarded to :class:`scipy.stats.gaussian_kde`.
+
+    beta : int, float, default = 1
+        The value of beta used to calculate the number of effective samples
 
     Returns
     -------
@@ -1138,11 +1146,16 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
         Has to be ordered from outermost to innermost contour.
         Default: [0.95, 0.68]
 
-    ncompress : int, default=1000
+    ncompress : int, str, default='equal'
         Degree of compression.
-        If int: number of samples returned.
-        If True: compresses to the channel capacity.
-        If False: no compression.
+
+        * If ``int``: desired number of samples after compression.
+        * If ``False``: no compression.
+        * If ``True``: compresses to the channel capacity, equivalent to
+          ``ncompress='entropy'``.
+        * If ``str``: determine number from the Huggins-Roy family of
+          effective samples in :func:`anesthetic.utils.neff`
+          with ``beta=ncompress``.
 
     nplot_2d : int, default=1000
         Number of plotting points to use.
@@ -1168,7 +1181,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
         data_y = data_y[weights != 0]
         weights = weights[weights != 0]
 
-    ncompress = kwargs.pop('ncompress', 1000)
+    ncompress = kwargs.pop('ncompress', 'equal')
     nplot = kwargs.pop('nplot_2d', 1000)
     bw_method = kwargs.pop('bw_method', None)
     label = kwargs.pop('label', None)
@@ -1355,6 +1368,17 @@ def scatter_plot_2d(ax, data_x, data_y, *args, **kwargs):
     data_x, data_y : np.array
         x and y coordinates of uniformly weighted samples to plot.
 
+    ncompress : int, str, default='equal'
+        Degree of compression.
+
+        * If ``int``: desired number of samples after compression.
+        * If ``False``: no compression.
+        * If ``True``: compresses to the channel capacity, equivalent to
+          ``ncompress='entropy'``.
+        * If ``str``: determine number from the Huggins-Roy family of
+          effective samples in :func:`anesthetic.utils.neff`
+          with ``beta=ncompress``.
+
     Returns
     -------
     lines : :class:`matplotlib.lines.Line2D`
@@ -1390,7 +1414,7 @@ def scatter_plot_2d(ax, data_x, data_y, *args, **kwargs):
 
 def basic_cmap(color):
     """Construct basic colormap a single color."""
-    return LinearSegmentedColormap.from_list(color, ['#ffffff', color])
+    return LinearSegmentedColormap.from_list(str(color), ['#ffffff', color])
 
 
 def quantile_plot_interval(q):
