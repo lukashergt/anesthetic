@@ -247,6 +247,7 @@ class Samples(WeightedLabelledDataFrame):
                 self[x].plot(ax=ax, xlabel=xlabel,
                              *args, **kwargs)
                 ax.set_xlabel(xlabel)
+                ax.set_ylabel("")
             else:
                 ax.plot([], [])
 
@@ -394,7 +395,7 @@ class Samples(WeightedLabelledDataFrame):
                         if x in margin:
                             lkwargs['xmargin'] = margin[x]
                         if x == y:
-                            self[x].plot(ax=ax.twin, xlabel=xlabel,
+                            self[x].plot(ax=ax.twin, xlabel=xlabel, ylabel="",
                                          *args, **lkwargs)
                             ax.set_xlabel(xlabel)
                             ax.set_ylabel(ylabel)
@@ -867,21 +868,24 @@ class NestedSamples(Samples):
 
         samples.label = self.label
 
-        if base is None:
-            samples['DeltalogZ'] = samples.logZ - samples.logZ.mean()
-            samples['DeltaD_KL'] = samples.D_KL - samples.D_KL.mean()
-            samples['DeltalogL_P'] = samples.logL_P - samples.logL_P.mean()
-            samples['Deltad_G'] = samples.d_G - samples.d_G.mean()
-        else:
-            samples['DeltalogZ'] = samples.logZ - base.logZ.mean()
-            samples['DeltaD_KL'] = samples.D_KL - base.D_KL.mean()
-            samples['DeltalogL_P'] = samples.logL_P - base.logL_P.mean()
-            samples['Deltad_G'] = samples.d_G - base.d_G.mean()
-        samples.set_label('DeltalogZ', r'$\Delta\ln\mathcal{Z}$')
-        samples.set_label('DeltaD_KL', r'$\Delta\mathcal{D}_\mathrm{KL}$')
-        samples.set_label('DeltalogL_P',
-                          r'$\Delta\langle\ln\mathcal{L}\rangle_\mathcal{P}$')
-        samples.set_label('Deltad_G', r'$\Delta d_\mathrm{G}$')
+        if base is not None:
+            if base == 'self':
+                samples['DeltalogZ'] = samples.logZ - samples.logZ.mean()
+                samples['DeltaD_KL'] = samples.D_KL - samples.D_KL.mean()
+                samples['DeltalogL_P'] = samples.logL_P - samples.logL_P.mean()
+                samples['Deltad_G'] = samples.d_G - samples.d_G.mean()
+            else:
+                samples['DeltalogZ'] = samples.logZ - base.logZ.mean()
+                samples['DeltaD_KL'] = samples.D_KL - base.D_KL.mean()
+                samples['DeltalogL_P'] = samples.logL_P - base.logL_P.mean()
+                samples['Deltad_G'] = samples.d_G - base.d_G.mean()
+            samples.set_label('DeltalogZ', r'$\Delta\ln\mathcal{Z}$')
+            samples.set_label('DeltaD_KL', r'$\Delta\mathcal{D}_\mathrm{KL}$')
+            samples.set_label(
+                    'DeltalogL_P',
+                    r'$\Delta\langle\ln\mathcal{L}\rangle_\mathcal{P}$'
+            )
+            samples.set_label('Deltad_G', r'$\Delta d_\mathrm{G}$')
 
         return samples
 
