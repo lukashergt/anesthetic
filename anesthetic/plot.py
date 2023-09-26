@@ -16,14 +16,6 @@ from scipy.stats import gaussian_kde
 from scipy.special import erf
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 from matplotlib.axes import Axes
-try:
-    from astropy.visualization import hist
-except ImportError:
-    pass
-try:
-    from anesthetic.kde import fastkde_1d, fastkde_2d
-except ImportError:
-    pass
 import matplotlib.cbook as cbook
 import matplotlib.lines as mlines
 from matplotlib.ticker import MaxNLocator, AutoMinorLocator
@@ -33,7 +25,7 @@ from anesthetic.utils import nest_level
 from anesthetic.utils import (sample_compression_1d, quantile,
                               triangular_sample_compression_2d,
                               iso_probability_contours,
-                              match_contour_to_contourf)
+                              match_contour_to_contourf, histogram_bin_edges)
 from anesthetic.boundary import cut_and_normalise_gaussian
 
 
@@ -775,8 +767,9 @@ def fastkde_plot_1d(ax, data, *args, **kwargs):
     q = quantile_plot_interval(q=q)
 
     try:
+        from anesthetic.kde import fastkde_1d
         x, p, xmin, xmax = fastkde_1d(data, xmin, xmax)
-    except NameError:
+    except ImportError:
         raise ImportError("You need to install fastkde to use fastkde")
     p /= p.max()
     i = ((x > quantile(x, q[0], p)) & (x < quantile(x, q[-1], p)))
@@ -990,12 +983,19 @@ def hist_plot_1d(ax, data, *args, **kwargs):
         xmax += xmargin[1] * xdelta
     range = kwargs.pop('range', (xmin, xmax))
 
-    if type(bins) == str and bins in ['knuth', 'freedman', 'blocks']:
+    if isinstance(bins, str) and bins in ['fd', 'scott', 'sqrt']:
+        bins = histogram_bin_edges(data,
+                                   weights=weights,
+                                   bins=bins,
+                                   beta=kwargs.pop('beta', 'equal'),
+                                   range=range)
+    if isinstance(bins, str) and bins in ['knuth', 'freedman', 'blocks']:
         try:
+            from astropy.visualization import hist
             h, edges, bars = hist(data, ax=ax, bins=bins,
                                   range=range, histtype=histtype,
                                   color=color, *args, **kwargs)
-        except NameError:
+        except ImportError:
             raise ImportError("You need to install astropy to use astropyhist")
     else:
         h, edges, bars = ax.hist(data, weights=weights, bins=bins,
@@ -1083,10 +1083,11 @@ def fastkde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     kwargs.pop('q', None)
 
     try:
+        from anesthetic.kde import fastkde_2d
         x, y, pdf, xmin, xmax, ymin, ymax = fastkde_2d(data_x, data_y,
                                                        xmin=xmin, xmax=xmax,
                                                        ymin=ymin, ymax=ymax)
-    except NameError:
+    except ImportError:
         raise ImportError("You need to install fastkde to use fastkde")
 
     levels = iso_probability_contours(pdf, contours=levels)
