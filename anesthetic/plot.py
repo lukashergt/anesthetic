@@ -845,8 +845,10 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     bw_method : str, scalar or callable, optional
         Forwarded to :class:`scipy.stats.gaussian_kde`.
 
-    beta : int, float, default = 1
-        The value of beta used to calculate the number of effective samples
+    bw_scale : float, default=1
+        Scales the bandwidth relative to the automatically computed one by
+        :class:`scipy.stats.gaussian_kde`. A value greater 1 will smooth more,
+        a value smaller 1 will smooth less.
 
     Returns
     -------
@@ -864,6 +866,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     ncompress = kwargs.pop('ncompress', False)
     nplot = kwargs.pop('nplot_1d', 100)
     bw_method = kwargs.pop('bw_method', None)
+    bw_scale = kwargs.pop('bw_scale', 1)
     levels = kwargs.pop('levels', [0.95, 0.68])
     density = kwargs.pop('density', False)
 
@@ -894,6 +897,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
 
     data_compressed, w = sample_compression_1d(data, weights, ncompress)
     kde = gaussian_kde(data_compressed, weights=w, bw_method=bw_method)
+    kde.set_bandwidth(bw_method=kde.factor*bw_scale)
 
     p = kde(x)
     p /= p.max()
@@ -1168,6 +1172,11 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     bw_method : str, scalar or callable, optional
         Forwarded to :class:`scipy.stats.gaussian_kde`.
 
+    bw_scale : float, default=1
+        Scales the bandwidth relative to the automatically computed one by
+        :class:`scipy.stats.gaussian_kde`. A value greater 1 will smooth more,
+        a value smaller 1 will smooth less.
+
     Returns
     -------
     c : :class:`matplotlib.contour.QuadContourSet`
@@ -1189,6 +1198,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     ncompress = kwargs.pop('ncompress', 'equal')
     nplot = kwargs.pop('nplot_2d', 1000)
     bw_method = kwargs.pop('bw_method', None)
+    bw_scale = kwargs.pop('bw_scale', 1)
     label = kwargs.pop('label', None)
     zorder = kwargs.pop('zorder', 1)
     levels = kwargs.pop('levels', [0.95, 0.68])
@@ -1225,6 +1235,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     tri, w = triangular_sample_compression_2d(data_x, data_y, cov,
                                               weights, ncompress)
     kde = gaussian_kde([tri.x, tri.y], weights=w, bw_method=bw_method)
+    kde.set_bandwidth(bw_method=kde.factor*bw_scale)
 
     P = kde([X.ravel(), Y.ravel()]).reshape(X.shape)
 
