@@ -205,6 +205,13 @@ class Samples(WeightedLabelledDataFrame):
             can be hard to interpret/expensive for :class:`Samples`,
             :class:`MCMCSamples`, or :class:`NestedSamples`.
 
+        logx : list(str), optional
+            Which parameters/columns to plot on a log scale.
+            Needs to match if plotting on top of a pre-existing axes.
+
+        label : str, optional
+            Legend label added to each axis.
+
         Returns
         -------
         axes : :class:`pandas.Series` of :class:`matplotlib.axes.Axes`
@@ -222,7 +229,14 @@ class Samples(WeightedLabelledDataFrame):
             axes = self.drop_labels().columns
 
         if not isinstance(axes, AxesSeries):
-            _, axes = make_1d_axes(axes, labels=self.get_labels_map())
+            _, axes = make_1d_axes(axes, labels=self.get_labels_map(),
+                                   logx=kwargs.pop('logx', None))
+            logx = axes._logx
+        else:
+            logx = kwargs.pop('logx', axes._logx)
+            if logx != axes._logx:
+                raise ValueError(f"logx does not match the pre-existing axes."
+                                 f"logx={logx}, axes._logx={axes._logx}")
 
         kwargs['kind'] = kwargs.get('kind', 'kde_1d')
         kwargs['label'] = kwargs.get('label', self.label)
@@ -244,7 +258,7 @@ class Samples(WeightedLabelledDataFrame):
         for x, ax in axes.items():
             if x in self and kwargs['kind'] is not None:
                 xlabel = self.get_label(x)
-                self[x].plot(ax=ax, xlabel=xlabel,
+                self[x].plot(ax=ax, xlabel=xlabel, logx=x in logx,
                              *args, **kwargs)
                 ax.set_xlabel(xlabel)
                 ax.set_ylabel("")
@@ -322,6 +336,14 @@ class Samples(WeightedLabelledDataFrame):
             overwrite any kwarg with the same key passed to <sub>_kwargs.
             Default: {}
 
+        logx, logy : list(str), optional
+            Which parameters/columns to plot on a log scale for the x-axis and
+            y-axis, respectively.
+            Needs to match if plotting on top of a pre-existing axes.
+
+        label : str, optional
+            Legend label added to each axis.
+
         Returns
         -------
         axes : :class:`pandas.DataFrame` of :class:`matplotlib.axes.Axes`
@@ -352,12 +374,6 @@ class Samples(WeightedLabelledDataFrame):
         margin = kwargs.pop('margin', {})
         if isinstance(margin, float):
             margin = {key: margin for key, _ in self.columns}
-        local_kwargs = {pos: kwargs.pop('%s_kwargs' % pos, {})
-                        for pos in ['upper', 'lower', 'diagonal']}
-        kwargs['label'] = kwargs.get('label', self.label)
-
-        for pos in local_kwargs:
-            local_kwargs[pos].update(kwargs)
 
         if axes is None:
             axes = self.drop_labels().columns
@@ -366,7 +382,25 @@ class Samples(WeightedLabelledDataFrame):
             _, axes = make_2d_axes(axes, labels=self.get_labels_map(),
                                    upper=('upper' in kind),
                                    lower=('lower' in kind),
-                                   diagonal=('diagonal' in kind))
+                                   diagonal=('diagonal' in kind),
+                                   logx=kwargs.pop('logx', None),
+                                   logy=kwargs.pop('logy', None))
+            logx = axes._logx
+            logy = axes._logy
+        else:
+            logx = kwargs.pop('logx', axes._logx)
+            logy = kwargs.pop('logy', axes._logy)
+            if logx != axes._logx or logy != axes._logy:
+                raise ValueError(f"logx or logy not matching existing axes:"
+                                 f"logx={logx}, axes._logx={axes._logx}"
+                                 f"logy={logy}, axes._logy={axes._logy}")
+
+        local_kwargs = {pos: kwargs.pop('%s_kwargs' % pos, {})
+                        for pos in ['upper', 'lower', 'diagonal']}
+        kwargs['label'] = kwargs.get('label', self.label)
+
+        for pos in local_kwargs:
+            local_kwargs[pos].update(kwargs)
 
         for y, row in axes.iterrows():
             for x, ax in row.items():
@@ -396,6 +430,7 @@ class Samples(WeightedLabelledDataFrame):
                             lkwargs['xmargin'] = margin[x]
                         if x == y:
                             self[x].plot(ax=ax.twin, xlabel=xlabel, ylabel="",
+                                         logx=x in logx,
                                          *args, **lkwargs)
                             ax.set_xlabel(xlabel)
                             ax.set_ylabel(ylabel)
@@ -403,6 +438,7 @@ class Samples(WeightedLabelledDataFrame):
                             if y in margin:
                                 lkwargs['ymargin'] = margin[y]
                             self.plot(x, y, ax=ax, xlabel=xlabel,
+                                      logx=x in logx, logy=y in logy,
                                       ylabel=ylabel, *args, **lkwargs)
                             ax.set_xlabel(xlabel)
                             ax.set_ylabel(ylabel)
