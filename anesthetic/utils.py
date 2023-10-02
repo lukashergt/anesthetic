@@ -1,4 +1,6 @@
 """Data-processing utility functions."""
+import warnings
+
 import numpy as np
 import pandas
 from scipy import special
@@ -169,7 +171,8 @@ def sample_cdf(samples, inverse=False, interpolation='linear'):
 
 
 def credibility_interval(samples, weights=None, level=0.68, method="iso-pdf",
-                         return_covariance=False, nsamples=12):
+                         return_covariance=False, nsamples=12, tol=1e-8,
+                         **interpolation_kwargs):
     """Compute the credibility interval of weighted samples.
 
     Based on linear interpolation of the cumulative density function, thus
@@ -213,7 +216,7 @@ def credibility_interval(samples, weights=None, level=0.68, method="iso-pdf",
         ``return_covariance=True``, returns a tuple (mean(s), covariance)
         where covariance is the covariance over the sampled limits.
     """
-    if level >= 1:
+    if level >= 1 and method != 'std':
         raise ValueError('level must be <1, got {0:.2f}'.format(level))
     if len(np.shape(samples)) != 1:
         raise ValueError('Support only 1D arrays for samples')
@@ -226,6 +229,33 @@ def credibility_interval(samples, weights=None, level=0.68, method="iso-pdf",
         weights = np.ones(len(samples))
     else:
         weights = np.array(weights.copy())
+
+    if nsamples is None:
+        if method == 'std':
+            return np.array([samples.mean() - level * samples.std(),
+                             samples.mean() + level * samples.std()])
+        args = np.argsort(samples)
+        cdf = np.cumsum(weights[args])
+        cdf /= cdf[-1]
+        invCDF = interp1d(cdf, samples[args], **interpolation_kwargs)
+        if method == 'iso-pdf':
+            # Find the smallest interval.
+            def distance(Y, level=level):
+                return invCDF(Y + level) - invCDF(Y)
+            with warnings.catch_warnings(action='ignore',
+                                         category=RuntimeWarning):
+                res = minimize_scalar(distance, bounds=(0, 1-level), tol=tol)
+            return np.array([invCDF(res.x), invCDF(res.x+level)])
+        elif method == 'lower-limit':
+            # Get value from which we reach the desired level.
+            return invCDF(1-level)
+        elif method == 'upper-limit':
+            # Get value to which we reach the desired level.
+            return invCDF(level)
+        elif method == 'equal-tailed':
+            return np.array([invCDF((1-level)/2), invCDF((1+level)/2)])
+        else:
+            raise ValueError(f"Method '{method}' unknown")
 
     # Convert samples to unit weight not the case
     if not np.all(np.logical_or(weights == 0, weights == 1)):
@@ -247,8 +277,9 @@ def credibility_interval(samples, weights=None, level=0.68, method="iso-pdf",
             # Find smallest interval
             def distance(Y, level=level):
                 return invCDF(Y+level)-invCDF(Y)
-            res = minimize_scalar(distance, bounds=(0, 1-level),
-                                  method="Bounded")
+            with warnings.catch_warnings(action='ignore',
+                                         category=RuntimeWarning):
+                res = minimize_scalar(distance, bounds=(0, 1-level), tol=tol)
             ci_samples.append(np.array([invCDF(res.x),
                                         invCDF(res.x+level)]))
         elif method == 'lower-limit':
