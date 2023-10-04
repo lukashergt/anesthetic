@@ -171,8 +171,7 @@ def sample_cdf(samples, inverse=False, interpolation='linear'):
 
 
 def credibility_interval(samples, weights=None, level=0.68, method="iso-pdf",
-                         return_covariance=False, nsamples=12, tol=1e-8,
-                         **interpolation_kwargs):
+                         return_covariance=False, nsamples=12, tol=1e-8):
     """Compute the credibility interval of weighted samples.
 
     Based on linear interpolation of the cumulative density function, thus
@@ -235,25 +234,29 @@ def credibility_interval(samples, weights=None, level=0.68, method="iso-pdf",
             return np.array([samples.mean() - level * samples.std(),
                              samples.mean() + level * samples.std()])
         args = np.argsort(samples)
-        cdf = np.cumsum(weights[args])
-        cdf /= cdf[-1]
-        invCDF = interp1d(cdf, samples[args], **interpolation_kwargs)
+        w = weights[args] / weights.sum()
+        x = samples[args]
+        # empirical cumulative distribution function using weighted percentiles
+        ecdf = (np.cumsum(w) - w/2) / w.sum()
+        # empirical percent point function
+        eppf = interp1d(np.concatenate(([0], ecdf, [1])),
+                        np.concatenatex(([x[0]], x, [x[-1]])),
+                        kind='linear')
         if method == 'iso-pdf':
             # Find the smallest interval.
-            def distance(Y, level=level):
-                return invCDF(Y + level) - invCDF(Y)
             with warnings.catch_warnings(action='ignore',
                                          category=RuntimeWarning):
-                res = minimize_scalar(distance, bounds=(0, 1-level), tol=tol)
-            return np.array([invCDF(res.x), invCDF(res.x+level)])
+                res = minimize_scalar(lambda y: eppf(y+level) - eppf(y),
+                                      bounds=(0, 1-level), tol=tol)
+            return np.array([eppf(res.x), eppf(res.x+level)])
         elif method == 'lower-limit':
             # Get value from which we reach the desired level.
-            return invCDF(1-level)
+            return eppf(1-level)
         elif method == 'upper-limit':
             # Get value to which we reach the desired level.
-            return invCDF(level)
+            return eppf(level)
         elif method == 'equal-tailed':
-            return np.array([invCDF((1-level)/2), invCDF((1+level)/2)])
+            return np.array([eppf((1-level)/2), eppf((1+level)/2)])
         else:
             raise ValueError(f"Method '{method}' unknown")
 
