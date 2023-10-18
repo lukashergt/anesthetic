@@ -240,7 +240,7 @@ def credibility_interval(samples, weights=None, level=0.68, method="iso-pdf",
         ecdf = (np.cumsum(w) - w/2) / w.sum()
         # empirical percent point function
         eppf = interp1d(np.concatenate(([0], ecdf, [1])),
-                        np.concatenatex(([x[0]], x, [x[-1]])),
+                        np.concatenate(([x[0]], x, [x[-1]])),
                         kind='linear')
         if method == 'iso-pdf':
             # Find the smallest interval.
