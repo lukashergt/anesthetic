@@ -313,6 +313,8 @@ class AxesDataFrame(DataFrame):
                     axes[x][y].xaxis.set_major_locator(
                         MaxNLocator(3, prune='both'))
                     axes[x][y].xaxis.set_minor_locator(AutoMinorLocator(1))
+                    if axes[x][y] is not None:
+                        axes[x][y].name = (x, y)
         return axes
 
     @staticmethod
