@@ -422,7 +422,7 @@ class Samples(WeightedLabelledDataFrame):
                         if x in margin:
                             lkwargs['xmargin'] = margin[x]
                         if x == y:
-                            self[x].plot(ax=ax.twin, xlabel=xlabel, ylabel="",
+                            self[x].plot(ax=ax.twin, xlabel=xlabel,
                                          logx=x in logx,
                                          *args, **lkwargs)
                             ax.set_xlabel(xlabel)

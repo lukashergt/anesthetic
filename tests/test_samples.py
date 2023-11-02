@@ -433,7 +433,7 @@ def test_plot_1d_no_axes():
 
 
 @pytest.mark.parametrize('kind', ['kde', 'hist', skipif_no_fastkde('fastkde')])
-def test_plot_logscale(kind):
+def test_plot_logscale_1d(kind):
     ns = read_chains('./tests/example_data/pc')
     params = ['x0', 'x1', 'x2', 'x3', 'x4']
 
@@ -455,6 +455,12 @@ def test_plot_logscale(kind):
         pmax = np.log10(ax.patches[arg].get_x())
         d = np.log10(ax.patches[arg+1].get_x() / ax.patches[arg].get_x())
     assert pmax == pytest.approx(-1, abs=d)
+
+
+@pytest.mark.parametrize('kind', ['kde', 'hist', skipif_no_fastkde('fastkde')])
+def test_plot_logscale_2d(kind):
+    ns = read_chains('./tests/example_data/pc')
+    params = ['x0', 'x1', 'x2', 'x3', 'x4']
 
     # 2d, logx only
     axes = ns.plot_2d(params, kind=kind, logx=['x2'])
@@ -513,7 +519,8 @@ def test_plot_logscale(kind):
 @pytest.mark.parametrize('r', [None, (1e-5, 1)])
 def test_plot_logscale_hist_kwargs(k, b, r):
     ns = read_chains('./tests/example_data/pc')
-    axes = ns[['x2']].plot_1d(kind=k, logx=['x2'], bins=b, range=r)
+    with pytest.warns(UserWarning) if k == 'hist' else nullcontext():
+        axes = ns[['x2']].plot_1d(kind=k, logx=['x2'], bins=b, range=r)
     ax = axes.loc['x2']
     assert ax.get_xscale() == 'log'
     arg = np.argmax([p.get_height() for p in ax.patches])

@@ -1,5 +1,6 @@
 import anesthetic.examples._matplotlib_agg  # noqa: F401
 from packaging import version
+from warnings import catch_warnings, filterwarnings
 import pytest
 import numpy as np
 import matplotlib
@@ -763,6 +764,10 @@ def test_make_axes_logscale():
             else:
                 assert ax.get_xscale() == 'log'
             assert ax.get_yscale() == 'linear'
+            with catch_warnings():
+                filterwarnings('error', category=UserWarning,
+                               message="Attempt to set non-positive")
+                ax.set_ylim(-1, 1)
 
     # 2d, logy only
     fig, axes = make_2d_axes(['x0', 'x1', 'x2', 'x3'],
@@ -770,6 +775,10 @@ def test_make_axes_logscale():
     for y, rows in axes.iterrows():
         for x, ax in rows.items():
             assert ax.get_xscale() == 'linear'
+            with catch_warnings():
+                filterwarnings('error', category=UserWarning,
+                               message="Attempt to set non-positive")
+                ax.set_xlim(-1, 1)
             if y in ['x0', 'x2']:
                 assert ax.get_yscale() == 'linear'
             else:
@@ -851,7 +860,10 @@ def test_logscale_2d(plot_2d):
     ax.set_xscale('log')
     p = plot_2d(ax, x, logy)
     if 'kde' in plot_2d.__name__:
-        xmax, ymax = p[0].allsegs[1][0].T
+        if version.parse(matplotlib.__version__) >= version.parse('3.8.0'):
+            xmax, ymax = p[0].get_paths()[1].vertices[0].T
+        else:
+            xmax, ymax = p[0].allsegs[1][0].T
         xmax = np.mean(np.log10(xmax))
         ymax = np.mean(ymax)
     elif 'hist' in plot_2d.__name__:
@@ -872,7 +884,10 @@ def test_logscale_2d(plot_2d):
     ax.set_yscale('log')
     p = plot_2d(ax, logx, y)
     if 'kde' in plot_2d.__name__:
-        xmax, ymax = p[0].allsegs[1][0].T
+        if version.parse(matplotlib.__version__) >= version.parse('3.8.0'):
+            xmax, ymax = p[0].get_paths()[1].vertices[0].T
+        else:
+            xmax, ymax = p[0].allsegs[1][0].T
         xmax = np.mean(xmax)
         ymax = np.mean(np.log10(ymax))
     elif 'hist' in plot_2d.__name__:
@@ -894,7 +909,10 @@ def test_logscale_2d(plot_2d):
     ax.set_yscale('log')
     p = plot_2d(ax, x, y)
     if 'kde' in plot_2d.__name__:
-        xmax, ymax = p[0].allsegs[1][0].T
+        if version.parse(matplotlib.__version__) >= version.parse('3.8.0'):
+            xmax, ymax = p[0].get_paths()[1].vertices[0].T
+        else:
+            xmax, ymax = p[0].allsegs[1][0].T
         xmax = np.mean(np.log10(xmax))
         ymax = np.mean(np.log10(ymax))
     elif 'hist' in plot_2d.__name__:

@@ -324,15 +324,19 @@ class AxesDataFrame(DataFrame):
         class DiagonalAxes(type(ax)):
             def set_xlim(self, left=None, right=None, emit=True, auto=False,
                          xmin=None, xmax=None):
-                super().set_ylim(bottom=left, top=right, emit=True, auto=auto,
-                                 ymin=xmin, ymax=xmax)
+                if (self.get_xaxis().get_scale() ==
+                        self.get_yaxis().get_scale()):
+                    super().set_ylim(bottom=left, top=right, emit=True,
+                                     auto=auto, ymin=xmin, ymax=xmax)
                 return super().set_xlim(left=left, right=right, emit=emit,
                                         auto=auto, xmin=xmin, xmax=xmax)
 
             def set_ylim(self, bottom=None, top=None, emit=True, auto=False,
                          ymin=None, ymax=None):
-                super().set_xlim(left=bottom, right=top, emit=True, auto=auto,
-                                 xmin=ymin, xmax=ymax)
+                if (self.get_xaxis().get_scale() ==
+                        self.get_yaxis().get_scale()):
+                    super().set_xlim(left=bottom, right=top, emit=True,
+                                     auto=auto, xmin=ymin, xmax=ymax)
                 return super().set_ylim(bottom=bottom, top=top, emit=emit,
                                         auto=auto, ymin=ymin, ymax=ymax)
 
@@ -1052,8 +1056,10 @@ def hist_plot_1d(ax, data, *args, **kwargs):
         xmax += xmargin[1] * xdelta
     if 'range' in kwargs and ax.get_xaxis().get_scale() == 'log':
         range = kwargs.pop('range')
-        range = range if range is not None else (data.min(), data.max())
-        range = (np.log10(range[0]), np.log10(range[1]))
+        if range is not None:
+            range = (np.log10(range[0]), np.log10(range[1]))
+        else:
+            range = (data.min(), data.max())
     else:
         range = kwargs.pop('range', (xmin, xmax))
     if isinstance(bins, (int, str)):
