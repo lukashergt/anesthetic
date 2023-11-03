@@ -616,8 +616,11 @@ def triangular_sample_compression_2d(x, y, cov, w=None, n=1000):
         w = pandas.Series(index=x.index, data=np.ones_like(x))
 
     # TODO: check for uniqueness, merge duplicates, add weights
-
-    if isinstance(n, str):
+    if n is False:
+        n = len(x)
+    elif n is True or isinstance(n, str):
+        if n is True:
+            n = 'entropy'
         n = int(neff(w, beta=n))
 
     # Select samples for triangulation
