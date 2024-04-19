@@ -13,9 +13,9 @@ from anesthetic import (
     Samples, MCMCSamples, NestedSamples, make_1d_axes, make_2d_axes,
     read_chains
 )
-from anesthetic.samples import (merge_nested_samples, merge_samples_weighted,
-                                WeightedLabelledSeries,
-                                WeightedLabelledDataFrame)
+from anesthetic.samples import merge_nested_samples, merge_samples_weighted
+from anesthetic.weighted_labelled_pandas import (WeightedLabelledSeries,
+                                                 WeightedLabelledDataFrame)
 from numpy.testing import (assert_array_equal, assert_array_almost_equal,
                            assert_array_less, assert_allclose)
 from pandas.testing import assert_frame_equal
@@ -418,6 +418,10 @@ def test_plot_2d_no_axes():
     assert axes.iloc[-1, 1].get_xlabel() == 'x1'
     assert axes.iloc[-1, 2].get_xlabel() == 'x2'
 
+    with pytest.warns(UserWarning):
+        axes = ns[['x0', 'logL_birth']].plot_2d()
+        axes = ns.drop_labels()[['x0', 'logL_birth']].plot_2d()
+
 
 def test_plot_1d_no_axes():
     np.random.seed(3)
@@ -430,6 +434,11 @@ def test_plot_1d_no_axes():
     assert axes.iloc[0].get_xlabel() == 'x0'
     assert axes.iloc[1].get_xlabel() == 'x1'
     assert axes.iloc[2].get_xlabel() == 'x2'
+
+    with pytest.warns(UserWarning):
+        axes = ns.plot_1d()
+        axes = ns[['x0', 'logL_birth']].plot_1d()
+        axes = ns.drop_labels()[['x0', 'logL_birth']].plot_1d()
 
 
 @pytest.mark.parametrize('kind', ['kde', 'hist', skipif_no_fastkde('fastkde')])
@@ -512,6 +521,25 @@ def test_plot_logscale_2d(kind):
                     else:
                         assert ax.twin.get_xscale() == 'linear'
                     assert ax.twin.get_yscale() == 'linear'
+
+
+def test_logscale_ticks():
+    np.random.seed(42)
+    ndim = 5
+    data = np.exp(10 * np.random.randn(200, ndim))
+    params = [f'a{i}' for i in range(ndim)]
+    fig, axes = make_2d_axes(params, logx=params, logy=params, upper=False)
+    samples = Samples(data, columns=params)
+    samples.plot_2d(axes)
+    for _, col in axes.iterrows():
+        for _, ax in col.items():
+            if ax is not None:
+                xlims = ax.get_xlim()
+                xticks = ax.get_xticks()
+                assert np.sum((xticks > xlims[0]) & (xticks < xlims[1])) > 1
+                ylims = ax.get_ylim()
+                yticks = ax.get_yticks()
+                assert np.sum((yticks > ylims[0]) & (yticks < ylims[1])) > 1
 
 
 @pytest.mark.parametrize('k', ['hist_1d', 'hist'])
@@ -1132,20 +1160,66 @@ def test_live_points():
     assert not live_points.isweighted()
 
 
-def test_contour_plot_2d_nan():
-    """Contour plots with nans arising from issue #96"""
+def test_dead_points():
+    np.random.seed(4)
+    pc = read_chains("./tests/example_data/pc")
+
+    for i, logL in pc.logL.iloc[::49].items():
+        dead_points = pc.dead_points(logL)
+        assert len(dead_points) == int(len(pc[:i[0]]))
+
+        dead_points_from_int = pc.dead_points(i[0])
+        assert_array_equal(dead_points_from_int, dead_points)
+
+        dead_points_from_index = pc.dead_points(i)
+        assert_array_equal(dead_points_from_index, dead_points)
+
+    assert pc.dead_points(1).index[0] == 0
+
+    last_dead_points = pc.dead_points()
+    logL = pc.logL_birth.max()
+    assert (last_dead_points.logL <= logL).all()
+    assert len(last_dead_points) == len(pc) - pc.nlive.mode().to_numpy()[0]
+    assert not dead_points.isweighted()
+
+
+def test_contour():
+    np.random.seed(4)
+    pc = read_chains("./tests/example_data/pc")
+
+    cut_float = 30.0
+    assert cut_float == pc.contour(cut_float)
+
+    cut_int = 0
+    assert pc.logL.min() == pc.contour(cut_int)
+
+    cut_none = None
+    nlive = pc.nlive.mode().to_numpy()[0]
+    assert sorted(pc.logL)[-nlive] == pc.contour(cut_none)
+
+
+@pytest.mark.parametrize("cut", [200, 0.0, None])
+def test_truncate(cut):
+    np.random.seed(4)
+    pc = read_chains("./tests/example_data/pc")
+    truncated_run = pc.truncate(cut)
+    assert not truncated_run.index.duplicated().any()
+    if cut is None:
+        assert_array_equal(pc, truncated_run)
+
+
+def test_hist_range_1d():
+    """Test to provide a solution to #89"""
     np.random.seed(3)
     ns = read_chains('./tests/example_data/pc')
-
-    ns.loc[:9, ('x0', '$x_0$')] = np.nan
-    with pytest.raises((np.linalg.LinAlgError, RuntimeError, ValueError)):
-        ns.plot_2d(['x0', 'x1'])
-
-    # Check this error is removed in the case of zero weights
-    weights = ns.get_weights()
-    weights[:10] = 0
-    ns.set_weights(weights, inplace=True)
-    ns.plot_2d(['x0', 'x1'])
+    ax = ns.plot_1d('x0', kind='hist_1d')
+    x1, x2 = ax['x0'].get_xlim()
+    assert x1 > -1
+    assert x2 < +1
+    ax = ns.plot_1d('x0', kind='hist_1d', bins=np.linspace(-1, 1, 11))
+    x1, x2 = ax['x0'].get_xlim()
+    assert x1 <= -1
+    assert x2 >= +1
 
 
 def test_compute_insertion():
