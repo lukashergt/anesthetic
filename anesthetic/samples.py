@@ -365,7 +365,7 @@ class Samples(WeightedLabelledDataFrame):
                             if np.isinf(self[x]).any():
                                 warnings.warn(f"column {y} has inf values.")
                             selfxy = self[[x, y]]
-                            selfxy = self.replace([-np.inf, np.inf], np.nan)
+                            selfxy = selfxy.replace([-np.inf, np.inf], np.nan)
                             selfxy = selfxy.dropna(axis=0)
                             selfxy.plot(x, y, ax=ax, xlabel=xlabel,
                                         logx=x in logx, logy=y in logy,
@@ -770,7 +770,7 @@ class NestedSamples(Samples):
             " as well as average loglikelihoods: help(samples.logL_P)"
             )
 
-    def stats(self, nsamples=None, beta=None, base=None):
+    def stats(self, nsamples=None, beta=None, norm=None):
         r"""Compute Nested Sampling statistics.
 
         Using nested sampling we can compute:
@@ -831,20 +831,27 @@ class NestedSamples(Samples):
         beta : float, array-like, optional
             inverse temperature(s) beta=1/kT. Default self.beta
 
+        norm : Series, :class:`Samples`, optional
+            :meth:`NestedSamples.stats` output used for normalisation.
+            Can be either a Series of mean values or Samples produced with
+            matching `nsamples` and `beta`. In addition to the columns
+            ['logZ', 'D_KL', 'logL_P', 'd_G'], this adds the normalised
+            versions ['Delta_logZ', 'Delta_D_KL', 'Delta_logL_P', 'Delta_d_G'].
+
         Returns
         -------
         if beta is scalar and nsamples is None:
-            Series, index ['logZ', 'd_G', 'DK_L', 'logL_P']
+            Series, index ['logZ', 'd_G', 'D_KL', 'logL_P']
         elif beta is scalar and nsamples is int:
             :class:`Samples`, index range(nsamples),
-            columns ['logZ', 'd_G', 'DK_L', 'logL_P']
+            columns ['logZ', 'd_G', 'D_KL', 'logL_P']
         elif beta is array-like and nsamples is None:
             :class:`Samples`, index beta,
-            columns ['logZ', 'd_G', 'DK_L', 'logL_P']
+            columns ['logZ', 'd_G', 'D_KL', 'logL_P']
         elif beta is array-like and nsamples is int:
             :class:`Samples`, index :class:`pandas.MultiIndex` the product of
             beta and range(nsamples)
-            columns ['logZ', 'd_G', 'DK_L', 'logL_P']
+            columns ['logZ', 'd_G', 'D_KL', 'logL_P']
         """
         logw = self.logw(nsamples, beta)
         if nsamples is None and beta is None:
@@ -871,24 +878,24 @@ class NestedSamples(Samples):
 
         samples.label = self.label
 
-        if base is not None:
-            if base == 'self':
-                samples['DeltalogZ'] = samples.logZ - samples.logZ.mean()
-                samples['DeltaD_KL'] = samples.D_KL - samples.D_KL.mean()
-                samples['DeltalogL_P'] = samples.logL_P - samples.logL_P.mean()
-                samples['Deltad_G'] = samples.d_G - samples.d_G.mean()
-            else:
-                samples['DeltalogZ'] = samples.logZ - base.logZ.mean()
-                samples['DeltaD_KL'] = samples.D_KL - base.D_KL.mean()
-                samples['DeltalogL_P'] = samples.logL_P - base.logL_P.mean()
-                samples['Deltad_G'] = samples.d_G - base.d_G.mean()
-            samples.set_label('DeltalogZ', r'$\Delta\ln\mathcal{Z}$')
-            samples.set_label('DeltaD_KL', r'$\Delta\mathcal{D}_\mathrm{KL}$')
+        if norm is not None:
+            samples['Delta_logZ'] = samples['logZ'] - norm['logZ']
+            samples.set_label('Delta_logZ',
+                              r"$\Delta\ln\mathcal{Z}$")
+
+            samples['Delta_D_KL'] = samples['D_KL'] - norm['D_KL']
+            samples.set_label('Delta_D_KL',
+                              r"$\Delta\mathcal{D}_\mathrm{KL}$")
+
+            samples['Delta_logL_P'] = samples['logL_P'] - norm['logL_P']
             samples.set_label(
-                    'DeltalogL_P',
-                    r'$\Delta\langle\ln\mathcal{L}\rangle_\mathcal{P}$'
+                'Delta_logL_P',
+                r"$\Delta\langle\ln\mathcal{L}\rangle_\mathcal{P}$"
             )
-            samples.set_label('Deltad_G', r'$\Delta d_\mathrm{G}$')
+
+            samples['Delta_d_G'] = samples['d_G'] - norm['d_G']
+            samples.set_label('Delta_d_G',
+                              r"$\Delta d_\mathrm{G}$")
 
         return samples
 
@@ -1331,19 +1338,17 @@ class NestedSamples(Samples):
             n_bad = invalid.sum()
             n_equal = (samples.logL == samples.logL_birth).sum()
             if n_bad:
-                warnings.warn("%i out of %i samples have logL <= logL_birth,"
-                              "\n%i of which have logL == logL_birth."
-                              "\nThis may just indicate numerical rounding "
-                              "errors at the peak of the likelihood, but "
-                              "further investigation of the chains files is "
-                              "recommended."
-                              "\nDropping the invalid samples. "
-                              "\nlogL=%s"
-                              "\nlogL_birth=%s" %
-                              (n_bad, len(samples), n_equal,
-                               samples.logL[invalid],
-                               samples.logL_birth[invalid]),
-                              RuntimeWarning)
+                n_inf = ((samples.logL == samples.logL_birth) &
+                         (samples.logL == -np.inf)).sum()
+                if n_bad > n_inf:
+                    warnings.warn(
+                        "%i out of %i samples have logL <= logL_birth,\n"
+                        "%i of which have logL == logL_birth.\n"
+                        "This may just indicate numerical rounding errors at "
+                        "the peak of the likelihood, but further "
+                        "investigation of the chains files is recommended.\n"
+                        "Dropping the invalid samples."
+                        % (n_bad, len(samples), n_equal), RuntimeWarning)
                 samples = samples[~invalid].reset_index(drop=True)
 
             samples.sort_values('logL', inplace=True)
