@@ -1,9 +1,11 @@
 """Tension statistics between two datasets."""
+import numpy as np
 from anesthetic.samples import Samples
 from scipy.stats import chi2
+from scipy.special import erfinv
 
 
-def stats(A, B, AB, nsamples=None, beta=None):  # noqa: D301
+def stats(separate, joint, nsamples=None, beta=None):  # noqa: D301
     r"""Compute tension statistics between two samples.
 
     Using nested sampling we can compute:
@@ -67,38 +69,30 @@ def stats(A, B, AB, nsamples=None, beta=None):  # noqa: D301
         DataFrame containing the following tension statistics in columns:
         ['logR', 'logI', 'logS', 'd_G', 'p']
     """
-    columns = ['logZ', 'D_KL', 'logL_P', 'd_G']
-    if set(columns).issubset(A.drop_labels().columns):
-        statsA = A
-    else:
-        statsA = A.stats(nsamples=nsamples, beta=beta)
-    if set(columns).issubset(B.drop_labels().columns):
-        statsB = B
-    else:
-        statsB = B.stats(nsamples=nsamples, beta=beta)
-    if set(columns).issubset(AB.drop_labels().columns):
-        statsAB = AB
-    else:
-        statsAB = AB.stats(nsamples=nsamples, beta=beta)
-    if statsA.shape != statsAB.shape or statsB.shape != statsAB.shape:
-        raise ValueError("Shapes of stats_A, stats_B, and stats_AB do not "
-                         "match. Make sure to pass consistent `nsamples`.")
+    separate_stats = separate[0].copy()
+    for s in separate[1:]:
+        separate_stats += s
+    joint_stats = joint.copy()
 
-    samples = Samples(index=statsA.index)
+    samples = Samples(index=joint_stats.index)
 
-    samples['logR'] = statsAB['logZ'] - statsA['logZ'] - statsB['logZ']
+    samples['logR'] = joint_stats['logZ'] - separate_stats['logZ']
     samples.set_label('logR', r'$\ln\mathcal{R}$')
 
-    samples['logI'] = statsA['D_KL'] + statsB['D_KL'] - statsAB['D_KL']
+    samples['logI'] = separate_stats['D_KL'] - joint_stats['D_KL']
     samples.set_label('logI', r'$\ln\mathcal{I}$')
 
-    samples['logS'] = statsAB['logL_P'] - statsA['logL_P'] - statsB['logL_P']
+    samples['logS'] = joint_stats['logL_P'] - separate_stats['logL_P']
     samples.set_label('logS', r'$\ln\mathcal{S}$')
 
-    samples['d_G'] = statsA['d_G'] + statsB['d_G'] - statsAB['d_G']
+    samples['d_G'] = separate_stats['d_G'] - joint_stats['d_G']
     samples.set_label('d_G', r'$d_\mathrm{G}$')
 
     p = chi2.sf(samples['d_G'] - 2 * samples['logS'], df=samples['d_G'])
     samples['p'] = p
     samples.set_label('p', '$p$')
+
+    samples['tension'] = erfinv(1-p) * np.sqrt(2)
+    samples.set_label('tension', r'tension~[$\sigma$]')
+
     return samples
