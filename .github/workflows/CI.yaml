@@ -91,7 +91,7 @@ jobs:
         run: python -m pytest --cov=anesthetic tests
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -113,7 +113,14 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: conda-incubator/setup-miniconda@v3
         with:
+          auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+      - name: Conda info
+        shell: bash -el {0}
+        run: |
+          conda info
+          conda list
+
       - name: Install hdf5 for macOS
         if: ${{ matrix.os == 'macos-latest' }}
         run: brew install hdf5 c-blosc
@@ -130,7 +137,7 @@ jobs:
         run: python -m pytest --cov=anesthetic tests
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -176,7 +183,7 @@ jobs:
         run: python -m pytest --cov=anesthetic tests
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
