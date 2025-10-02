@@ -627,18 +627,18 @@ def test_contour_plot_2d(contour_plot_2d):
     assert cf.get_cmap() == plt.cm.Reds
     assert ct.colors == 'C0'
     fig, ax = plt.subplots()
-    cf, ct = contour_plot_2d(ax, data_x, data_y, fc=None)
+    cf, ct = contour_plot_2d(ax, data_x, data_y, fc='None')
     assert cf is None
     assert ct.colors is None
     assert ct.get_cmap()(1.) == to_rgba('C0')
-    cf, ct = contour_plot_2d(ax, data_x, data_y, fc=None, c='C3')
+    cf, ct = contour_plot_2d(ax, data_x, data_y, fc='None', c='C3')
     assert cf is None
     assert ct.colors is None
     assert ct.get_cmap()(1.) == to_rgba('C3')
-    cf, ct = contour_plot_2d(ax, data_x, data_y, fc=None, ec='C1')
+    cf, ct = contour_plot_2d(ax, data_x, data_y, fc='None', ec='C1')
     assert cf is None
     assert ct.colors == 'C1'
-    cf, ct = contour_plot_2d(ax, data_x, data_y, fc=None, cmap=plt.cm.Reds)
+    cf, ct = contour_plot_2d(ax, data_x, data_y, fc='None', cmap=plt.cm.Reds)
     assert cf is None
     assert ct.colors is None
     assert ct.get_cmap() == plt.cm.Reds
@@ -702,7 +702,7 @@ def test_contour_plot_2d_levels(contour_plot_2d, levels):
 
     fig, (ax1, ax2) = plt.subplots(2)
     contour_plot_2d(ax1, x, y, levels=levels, cmap=cmap)
-    contour_plot_2d(ax2, x, y, levels=levels, cmap=cmap, fc=None)
+    contour_plot_2d(ax2, x, y, levels=levels, cmap=cmap, fc='None')
 
     # assert that color between filled and unfilled contours matches
     if version.parse(matplotlib.__version__) >= version.parse('3.8.0'):

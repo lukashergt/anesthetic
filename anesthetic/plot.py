@@ -830,7 +830,7 @@ def fastkde_plot_1d(ax, data, *args, **kwargs):
     color = kwargs.pop('color', (ax._get_lines.get_next_color()
                                  if cmap is None
                                  else plt.get_cmap(cmap)(0.68)))
-    facecolor = kwargs.pop('facecolor', False)
+    facecolor = kwargs.pop('facecolor', None)
     if 'edgecolor' in kwargs:
         edgecolor = kwargs.pop('edgecolor')
         if edgecolor:
@@ -858,7 +858,7 @@ def fastkde_plot_1d(ax, data, *args, **kwargs):
         x = 10**x
     ans = ax.plot(x[i], p[i]/area, color=color, *args, **kwargs)
 
-    if facecolor and facecolor not in [None, 'None', 'none']:
+    if facecolor and facecolor not in ['None', 'none']:
         if facecolor is True:
             facecolor = color
         c = iso_probability_contours(p[i], contours=levels)
@@ -957,7 +957,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     color = kwargs.pop('color', (ax._get_lines.get_next_color()
                                  if cmap is None
                                  else plt.get_cmap(cmap)(0.68)))
-    facecolor = kwargs.pop('facecolor', False)
+    facecolor = kwargs.pop('facecolor', None)
     if 'edgecolor' in kwargs:
         edgecolor = kwargs.pop('edgecolor')
         if edgecolor:
@@ -996,7 +996,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
         x = 10**x
     ans = ax.plot(x, pp/area, color=color, *args, **kwargs)
 
-    if facecolor and facecolor not in [None, 'None', 'none']:
+    if facecolor and facecolor not in ['None', 'none']:
         if facecolor is True:
             facecolor = color
         c = iso_probability_contours(pp, contours=levels)
@@ -1187,7 +1187,7 @@ def fastkde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     levels = kwargs.pop('levels', [0.95, 0.68])
 
     color = kwargs.pop('color', ax._get_lines.get_next_color())
-    facecolor = kwargs.pop('facecolor', True)
+    facecolor = kwargs.pop('facecolor', None)
     edgecolor = kwargs.pop('edgecolor', None)
     cmap = kwargs.pop('cmap', None)
     facecolor, edgecolor, cmap = set_colors(c=color, fc=facecolor,
@@ -1213,7 +1213,7 @@ def fastkde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     if ax.get_yaxis().get_scale() == 'log':
         y = 10**y
 
-    if facecolor not in [None, 'None', 'none']:
+    if facecolor not in ['None', 'none']:
         linewidths = kwargs.pop('linewidths', 0.5)
         contf = ax.contourf(x[i], y[j], pdf[np.ix_(j, i)], levels, cmap=cmap,
                             zorder=zorder, vmin=0, vmax=pdf.max(),
@@ -1319,7 +1319,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     levels = kwargs.pop('levels', [0.95, 0.68])
 
     color = kwargs.pop('color', ax._get_lines.get_next_color())
-    facecolor = kwargs.pop('facecolor', True)
+    facecolor = kwargs.pop('facecolor', None)
     edgecolor = kwargs.pop('edgecolor', None)
     cmap = kwargs.pop('cmap', None)
     facecolor, edgecolor, cmap = set_colors(c=color, fc=facecolor,
@@ -1369,7 +1369,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     if ax.get_yaxis().get_scale() == 'log':
         Y = 10**Y
 
-    if facecolor not in [None, 'None', 'none']:
+    if facecolor not in ['None', 'none']:
         linewidths = kwargs.pop('linewidths', 0.5)
         contf = ax.contourf(X, Y, P, levels=levels, cmap=cmap, zorder=zorder,
                             vmin=0, vmax=P.max(), *args, **kwargs)
@@ -1596,13 +1596,13 @@ def normalize_kwargs(kwargs, alias_mapping=None, drop=None):
 
 def set_colors(c, fc, ec, cmap):
     """Navigate interplay between possible color inputs {c, fc, ec, cmap}."""
-    if fc in [None, 'None', 'none']:
+    if fc in ['None', 'none']:
         # unfilled contours
         if ec is None and cmap is None:
             cmap = basic_cmap(c)
     else:
         # filled contours
-        if fc is True:
+        if fc is True or fc is None:
             fc = c
         if ec is None and cmap is None:
             ec = c
