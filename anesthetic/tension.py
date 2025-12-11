@@ -1,4 +1,4 @@
-"""Tension statistics between two datasets."""
+"""Tension statistics between two or more datasets."""
 import numpy as np
 from scipy.stats import chi2
 from scipy.special import erfcinv
@@ -14,36 +14,37 @@ def tension_stats(joint, *separate):
     two or more samples (example here for simplicity just with two datasets
     A and B):
 
-    - ``logR``: R statistic for dataset consistency
+    - ``logR``: R statistic for dataset consistency.
 
       .. math::
-        \log R = \log Z_{AB} - \log Z_{A} - \log Z_{B}
+        \ln R = \ln Z_{AB} - \ln Z_{A} - \ln Z_{B}
 
-    - ``I``: information ratio
-
-      .. math::
-        I = D_{KL}^{A} + D_{KL}^{B} - D_{KL}^{AB}
-
-    - ``logS``: suspiciousness
+    - ``I``: Mutual information estimate between data and params:
+      :math:`I(\Theta,A,B)`.
 
       .. math::
-        \log S = \log L_{AB} - \log L_{A} - \log L_{B}
+        \hat{I} = D_{KL}^{A} + D_{KL}^{B} - D_{KL}^{AB}
 
-    - ``d_G``: Gaussian model dimensionality of shared constrained parameters
+    - ``logS``: Suspiciousness.
+
+      .. math::
+        \ln S = \ln L_{AB} - \ln L_{A} - \ln L_{B}
+
+    - ``d_G``: Gaussian model dimensionality of shared constrained parameters.
 
       .. math::
         d = d_{A} + d_{B} - d_{AB}
 
-    - ``p``: p-value for the tension between two samples
+    - ``p``: p-value for the tension between two samples based on `logS`.
 
       .. math::
-        p = \int_{d-2\log{S}}^{\infty} \chi^2_d(x) dx
+        p = \int_{d-2\ln{S}}^{\infty} \chi^2_d(x) dx
 
-    - ``tension``: tension quantification in terms of numbers of sigma
-      calculated from p
+    - ``sigma``: Tension quantification in terms of numbers of sigma
+      calculated from `p`.
 
       .. math::
-        \sqrt{2} \rm{erfc}^{-1}(p)
+        \sqrt{2} {\rm erfc}^{-1}(p)
 
     Parameters
     ----------
@@ -63,7 +64,7 @@ def tension_stats(joint, *separate):
     -------
     samples : :class:`anesthetic.samples.Samples`
         DataFrame containing the following tension statistics in columns:
-        ['logR', 'I', 'logS', 'd_G', 'p', 'tension']
+        ['logR', 'I', 'logS', 'd_G', 'p', 'sigma']
     """
     columns = ["logL_P", "d_G"]
     if "logZ" in joint.drop_labels().columns:
@@ -107,7 +108,7 @@ def tension_stats(joint, *separate):
     samples["p"] = p
     samples.set_label("p", "$p$")
 
-    samples["tension"] = erfcinv(p) * np.sqrt(2)
-    samples.set_label("tension", r"tension~[$\sigma$]")
+    samples["sigma"] = erfcinv(p) * np.sqrt(2)
+    samples.set_label("sigma", r"$\sigma$")
 
     return samples
