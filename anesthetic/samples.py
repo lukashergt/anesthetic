@@ -883,6 +883,8 @@ class NestedSamples(Samples):
         samples.label = self.label
 
         if norm is not None:
+            if norm == 'self':
+                norm = samples
             samples['Delta_logZ'] = samples['logZ'] - norm['logZ']
             samples.set_label('Delta_logZ',
                               r"$\Delta\ln\mathcal{Z}$")
