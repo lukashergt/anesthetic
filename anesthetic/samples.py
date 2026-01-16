@@ -856,58 +856,50 @@ class NestedSamples(Samples):
         """
         logw = self.logw(nsamples, beta)
         if nsamples is None and beta is None:
-            samples = self._constructor_sliced(index=self.columns[:0],
-                                               dtype=float)
+            s = self._constructor_sliced(index=self.columns[:0], dtype=float)
         else:
-            samples = Samples(index=logw.columns, columns=self.columns[:0])
-        samples['logZ'] = self.logZ(logw)
-        samples.set_label('logZ', r'$\ln\mathcal{Z}$')
-        w = np.exp(logw-samples['logZ'])
+            s = Samples(index=logw.columns, columns=self.columns[:0])
+        s['logZ'] = self.logZ(logw)
+        s.set_label('logZ', r'$\ln\mathcal{Z}$')
+        w = np.exp(logw-s['logZ'])
 
         betalogL = self._betalogL(beta)
-        S = (logw*0).add(betalogL, axis=0) - samples.logZ
+        S = (logw*0).add(betalogL, axis=0) - s.logZ
 
-        samples['D_KL'] = (S*w).sum()
-        samples.set_label('D_KL', r'$\mathcal{D}_\mathrm{KL}$')
+        s['D_KL'] = (S*w).sum()
+        s.set_label('D_KL', r'$\mathcal{D}_\mathrm{KL}$')
 
-        samples['logL_P'] = samples['logZ'] + samples['D_KL']
-        samples.set_label('logL_P',
-                          r'$\langle\ln\mathcal{L}\rangle_\mathcal{P}$')
+        s['logL_P'] = s['logZ'] + s['D_KL']
+        s.set_label('logL_P', r'$\langle\ln\mathcal{L}\rangle_\mathcal{P}$')
 
-        samples['d_G'] = ((S-samples.D_KL)**2*w).sum()*2
-        samples.set_label('d_G', r'$d_\mathrm{G}$')
+        s['d_G'] = ((S-s.D_KL)**2*w).sum()*2
+        s.set_label('d_G', r'$d_\mathrm{G}$')
 
-        samples['chi2_max'] = -2 * samples['logL_P'] - samples['d_G']
-        samples.set_label('chi2_max', r'$\chi^2_\mathrm{max}$')
+        s['chi2_max'] = -2 * s['logL_P'] - s['d_G']
+        s.set_label('chi2_max', r'$\chi^2_\mathrm{max}$')
 
-        samples.label = self.label
+        s.label = self.label
 
         if norm is not None:
             if isinstance(norm, str) and norm == 'self':
-                norm = samples
-            samples['Delta_logZ'] = samples['logZ'] - norm['logZ']
-            samples.set_label('Delta_logZ',
-                              r"$\Delta\ln\mathcal{Z}$")
+                norm = s
+            s['Delta_logZ'] = s['logZ'] - norm['logZ'].mean()
+            s.set_label('Delta_logZ', r"$\Delta\ln\mathcal{Z}$")
 
-            samples['Delta_D_KL'] = samples['D_KL'] - norm['D_KL']
-            samples.set_label('Delta_D_KL',
-                              r"$\Delta\mathcal{D}_\mathrm{KL}$")
+            s['Delta_D_KL'] = s['D_KL'] - norm['D_KL'].mean()
+            s.set_label('Delta_D_KL', r"$\Delta\mathcal{D}_\mathrm{KL}$")
 
-            samples['Delta_logL_P'] = samples['logL_P'] - norm['logL_P']
-            samples.set_label(
-                'Delta_logL_P',
-                r"$\Delta\langle\ln\mathcal{L}\rangle_\mathcal{P}$"
-            )
+            s['Delta_logL_P'] = s['logL_P'] - norm['logL_P'].mean()
+            s.set_label('Delta_logL_P',
+                        r"$\Delta\langle\ln\mathcal{L}\rangle_\mathcal{P}$")
 
-            samples['Delta_d_G'] = samples['d_G'] - norm['d_G']
-            samples.set_label('Delta_d_G',
-                              r"$\Delta d_\mathrm{G}$")
+            s['Delta_d_G'] = s['d_G'] - norm['d_G'].mean()
+            s.set_label('Delta_d_G', r"$\Delta d_\mathrm{G}$")
 
-            samples['Delta_chi2_max'] = samples['chi2_max'] - norm['chi2_max']
-            samples.set_label('Delta_chi2_max',
-                              r"$\Delta \chi^2_\mathrm{max}$")
+            s['Delta_chi2_max'] = s['chi2_max'] - norm['chi2_max'].mean()
+            s.set_label('Delta_chi2_max', r"$\Delta \chi^2_\mathrm{max}$")
 
-        return samples
+        return s
 
     def logX(self, nsamples=None):
         """Log-Volume.
