@@ -883,7 +883,7 @@ class NestedSamples(Samples):
         samples.label = self.label
 
         if norm is not None:
-            if norm == 'self':
+            if isinstance(norm, str) and norm == 'self':
                 norm = samples
             samples['Delta_logZ'] = samples['logZ'] - norm['logZ']
             samples.set_label('Delta_logZ',
