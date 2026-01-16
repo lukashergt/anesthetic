@@ -877,6 +877,9 @@ class NestedSamples(Samples):
         samples['d_G'] = ((S-samples.D_KL)**2*w).sum()*2
         samples.set_label('d_G', r'$d_\mathrm{G}$')
 
+        samples['chi2_max'] = -2 * samples['logL_P'] - samples['d_G']
+        samples.set_label('chi2_max', r'$\chi^2_\mathrm{max}$')
+
         samples.label = self.label
 
         if norm is not None:
@@ -897,6 +900,10 @@ class NestedSamples(Samples):
             samples['Delta_d_G'] = samples['d_G'] - norm['d_G']
             samples.set_label('Delta_d_G',
                               r"$\Delta d_\mathrm{G}$")
+
+            samples['Delta_chi2_max'] = samples['chi2_max'] - norm['chi2_max']
+            samples.set_label('Delta_chi2_max',
+                              r"$\Delta \chi^2_\mathrm{max}$")
 
         return samples
 
