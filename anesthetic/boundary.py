@@ -28,12 +28,15 @@ def cut_and_normalise_gaussian(x, p, bw, xmin=None, xmax=None):
         corrected probabilities
 
     """
-    correction = np.ones_like(x)
+    def Phi(z):
+        return 0.5*(1 + erf(z/np.sqrt(2)))
+    a = (xmin - x)/bw if xmin is not None else -np.inf
+    b = (xmax - x)/bw if xmax is not None else +np.inf
+    correction = Phi(b) - Phi(a)
+    p /= correction
 
     if xmin is not None:
-        correction *= 0.5 * (1 + erf((x-xmin)/bw/np.sqrt(2)))
-        correction[x < xmin] = np.inf
+        p[x < xmin] = 0
     if xmax is not None:
-        correction *= 0.5 * (1 + erf((xmax-x)/bw/np.sqrt(2)))
-        correction[x > xmax] = np.inf
-    return p/correction
+        p[x > xmax] = 0
+    return p
