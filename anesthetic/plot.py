@@ -985,7 +985,9 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     p = kde(x)
     p /= p.max()
     bw = np.sqrt(kde.covariance[0, 0])
-    pp = cut_and_normalise_gaussian(x, p, bw, xmin=xmin, xmax=xmax)
+    pp = cut_and_normalise_gaussian(x, p, bw,
+                                    xmin=max(xmin, np.min(data)),
+                                    xmax=min(xmax, np.max(data)))
     pp /= pp.max()
     if version.parse(np.__version__) >= version.parse("2.0.0"):
         trapezoid = np.trapezoid
