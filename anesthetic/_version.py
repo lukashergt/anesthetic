@@ -1,1 +1,1 @@
-__version__ = '2.12.0_lukashergt-devel'
+__version__ = '2.12.0-lukashergt-devel'
