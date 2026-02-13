@@ -957,17 +957,23 @@ def test_stats():
     nsamples = 10
     beta = [0., 0.5, 1.]
 
-    vals = ['logZ', 'D_KL', 'logL_P', 'd_G']
-    delta_vals = ['Delta_logZ', 'Delta_D_KL', 'Delta_logL_P', 'Delta_d_G']
+    vals = ['logZ', 'D_KL', 'logL_P', 'd_G', 'chi2_min']
+    delta_vals = ['Delta_logZ',
+                  'Delta_D_KL',
+                  'Delta_logL_P',
+                  'Delta_d_G',
+                  'Delta_chi2_min']
 
     labels = [r'$\ln\mathcal{Z}$',
               r'$\mathcal{D}_\mathrm{KL}$',
               r'$\langle\ln\mathcal{L}\rangle_\mathcal{P}$',
-              r'$d_\mathrm{G}$']
+              r'$d_\mathrm{G}$',
+              r'$\chi^2_\mathrm{min}$']
     delta_labels = [r'$\Delta\ln\mathcal{Z}$',
                     r'$\Delta\mathcal{D}_\mathrm{KL}$',
                     r'$\Delta\langle\ln\mathcal{L}\rangle_\mathcal{P}$',
-                    r'$\Delta d_\mathrm{G}$']
+                    r'$\Delta d_\mathrm{G}$',
+                    r'$\Delta \chi^2_\mathrm{min}$']
 
     stats = pc.stats()
     assert isinstance(stats, WeightedLabelledSeries)

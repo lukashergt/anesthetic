@@ -891,8 +891,8 @@ class NestedSamples(Samples):
         s['d_G'] = ((S-s.D_KL)**2*w).sum()*2
         s.set_label('d_G', r'$d_\mathrm{G}$')
 
-        s['chi2_max'] = -2 * s['logL_P'] - s['d_G']
-        s.set_label('chi2_max', r'$\chi^2_\mathrm{max}$')
+        s['chi2_min'] = -2 * s['logL_P'] - s['d_G']
+        s.set_label('chi2_min', r'$\chi^2_\mathrm{min}$')
 
         s.label = self.label
 
@@ -912,8 +912,8 @@ class NestedSamples(Samples):
             s['Delta_d_G'] = s['d_G'] - norm['d_G'].mean()
             s.set_label('Delta_d_G', r"$\Delta d_\mathrm{G}$")
 
-            s['Delta_chi2_max'] = s['chi2_max'] - norm['chi2_max'].mean()
-            s.set_label('Delta_chi2_max', r"$\Delta \chi^2_\mathrm{max}$")
+            s['Delta_chi2_min'] = s['chi2_min'] - norm['chi2_min'].mean()
+            s.set_label('Delta_chi2_min', r"$\Delta \chi^2_\mathrm{min}$")
 
         return s
 
