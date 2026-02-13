@@ -719,7 +719,7 @@ class NestedSamples(Samples):
     _metadata = Samples._metadata + ['root', '_beta']
 
     def __init__(self, *args, **kwargs):
-        logzero = kwargs.pop('logzero', -1e29)
+        logzero = kwargs.pop('logzero', -1e30)
         self._beta = kwargs.pop('beta', 1.)
         logL_birth = kwargs.pop('logL_birth', None)
         if not isinstance(logL_birth, int) and logL_birth is not None:
