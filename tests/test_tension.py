@@ -58,14 +58,14 @@ def test_tension_stats_compatible_gaussian():
                                    abs=3*s.logS.std())
 
     assert s.p.mean() > 0.05
-    assert s.tension.mean() < 1
+    assert s.sigma.mean() < 1
 
     assert s.get_labels().tolist() == ([r'$\ln\mathcal{R}$',
                                         r'$\mathcal{I}$',
                                         r'$\ln\mathcal{S}$',
                                         r'$d_\mathrm{G}$',
                                         r'$p$',
-                                        r'tension~[$\sigma$]'])
+                                        r'$\sigma$'])
 
     # Test for more than two datasets.
     tension_stats(statsAB, statsA, statsB, statsB)
@@ -120,11 +120,11 @@ def test_tension_stats_incompatible_gaussian():
                                    abs=3*s.logS.std())
 
     assert s.p.mean() < 0.003
-    assert s.tension.mean() > 3
+    assert s.sigma.mean() > 3
 
     assert s.get_labels().tolist() == ([r'$\ln\mathcal{R}$',
                                         r'$\mathcal{I}$',
                                         r'$\ln\mathcal{S}$',
                                         r'$d_\mathrm{G}$',
                                         r'$p$',
-                                        r'tension~[$\sigma$]'])
+                                        r'$\sigma$'])
