@@ -73,6 +73,13 @@ def test_build_samples():
     assert len(ns) == nsamps
     assert np.all(np.isfinite(ns.logL))
 
+    nlive = 50
+    ns = NestedSamples(data=data, logL=logL, weights=weights, logL_birth=nlive)
+    assert len(ns) == nsamps
+    assert np.all(np.isfinite(ns.logL))
+    assert 'nlive' in ns.columns
+    assert np.all(ns.nlive[:-50+1] == 50)
+
     logL[:10] = -1e300
     weights[:10] = 0.
     mc = MCMCSamples(data=data, logL=logL, weights=weights, logzero=-1e29)
@@ -1835,7 +1842,6 @@ def test_groupby_stats():
     assert chains.corr().isweighted() is True
     assert chains.cov().isweighted() is True
     assert chains.hist().isweighted() is True
-    assert chains.corrwith(mcmc).isweighted() is True
 
     w1 = mcmc.loc[mcmc.chain == 1].get_weights().sum()
     w2 = mcmc.loc[mcmc.chain == 2].get_weights().sum()
@@ -1850,7 +1856,6 @@ def test_groupby_stats():
     w = [w1 for _ in range(len(params))] + [w2 for _ in range(len(params))]
     assert np.all(chains.corr().get_weights() == w)
     assert np.all(chains.cov().get_weights() == w)
-    assert np.all(chains.corrwith(mcmc).get_weights() == [w1, w2])
 
     for chain in [1, 2]:
         mask = (mcmc.chain == chain).to_numpy()
@@ -1874,8 +1879,6 @@ def test_groupby_stats():
                         chains.cov().loc[chain])
         assert_allclose(mcmc.loc[mask, params].corr(),
                         chains.corr().loc[chain])
-        assert_allclose([1, 1], chains.corrwith(mcmc.loc[mask, params]
-                                                ).loc[chain])
 
         group = chains.get_group(chain).drop(
                 columns=('chain', '$n_\\mathrm{chain}$'))

@@ -431,13 +431,13 @@ class Samples(WeightedLabelledDataFrame):
 
         if action == 'add':
             new_weights = samples.get_weights()
-            new_weights *= np.exp(logL_new - logL_new.max())
+            new_weights = new_weights * np.exp(logL_new - logL_new.max())
             samples.set_weights(new_weights, inplace=True)
             samples.logL += logL_new
         elif action == 'replace':
             logL_new2 = logL_new - samples.logL
             new_weights = samples.get_weights()
-            new_weights *= np.exp(logL_new2 - logL_new2.max())
+            new_weights = new_weights * np.exp(logL_new2 - logL_new2.max())
             samples.set_weights(new_weights, inplace=True)
             samples.logL = logL_new
         elif action == 'mask':
@@ -1389,7 +1389,9 @@ class NestedSamples(Samples):
             samples.reset_index(drop=True, inplace=True)
             n = np.ones(len(self), int) * nlive
             n[-nlive:] = np.arange(nlive, 0, -1)
-            samples['nlive', nlive_label] = n
+            samples['nlive'] = n
+            if self.islabelled():
+                samples.set_label('nlive', nlive_label)
         else:
             if logL_birth is not None:
                 label = r'$\ln\mathcal{L}_\mathrm{birth}$'
@@ -1508,7 +1510,7 @@ def merge_samples_weighted(samples, weights=None, label=None):
     new_samples = []
     for s, w in zip(mcmc_samples, weights):
         # Normalize the given weights
-        new_weights = s.get_weights() / s.get_weights().sum()
+        new_weights = s.get_weights() / s.get_weights().sum().copy()
         new_weights *= w/np.sum(weights)
         s = Samples(s, weights=new_weights)
         new_samples.append(s)
@@ -1516,7 +1518,7 @@ def merge_samples_weighted(samples, weights=None, label=None):
     new_samples = pandas.concat(new_samples)
 
     new_weights = new_samples.get_weights()
-    new_weights /= new_weights.max()
+    new_weights = new_weights / new_weights.max()
     new_samples.set_weights(new_weights, inplace=True)
 
     new_samples.label = label

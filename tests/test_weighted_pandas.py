@@ -6,12 +6,14 @@ from anesthetic.utils import neff
 import pytest
 import numpy as np
 from numpy.testing import assert_array_equal, assert_allclose
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgba
 from pandas.plotting import scatter_matrix, bootstrap_plot
 from pandas.plotting._matplotlib.misc import (
     scatter_matrix as orig_scatter_matrix
 )
+from packaging import version
 
 
 @pytest.fixture(autouse=True)
@@ -174,26 +176,41 @@ def test_WeightedDataFrame_corrwith(frame):
     assert isinstance(correl, WeightedSeries)
     assert not correl.isweighted()
     assert_array_equal(correl.index, frame.columns)
-    assert_allclose(correl, frame.corr()['A'], atol=1e-2)
+    assert_allclose(correl, frame.corr()['A'], rtol=1e-10, atol=1e-10)
 
     correl = frame.corrwith(frame[['A', 'B']])
     assert isinstance(correl, WeightedSeries)
     assert not correl.isweighted()
     assert_array_equal(correl.index, frame.columns)
-    assert_allclose(correl['A'], 1, atol=1e-2)
-    assert_allclose(correl['B'], 1, atol=1e-2)
+    assert_allclose(correl['A'], 1, rtol=1e-12, atol=1e-12)
+    assert_allclose(correl['B'], 1, rtol=1e-12, atol=1e-12)
     assert np.isnan(correl['C'])
 
     unweighted = DataFrame(frame).droplevel('weights')
 
-    with pytest.raises(ValueError):
-        frame.corrwith(unweighted.A)
+    if version.parse(pandas.__version__) >= version.parse('3.0.0'):
+        correl = frame.corrwith(unweighted.A)
+        assert_allclose(correl['A'], 1, atol=1e-2)
+        assert_allclose(correl['B'], 0, atol=1e-2)
 
-    with pytest.raises(ValueError):
-        frame.corrwith(unweighted[['A', 'B']])
+        correl = frame.corrwith(unweighted[['A', 'B']])
+        assert_allclose(correl['A'], 1, atol=1e-2)
+        assert_allclose(correl['B'], 1, atol=1e-2)
+        assert np.isnan(correl['C'])
 
-    with pytest.raises(ValueError):
-        unweighted.corrwith(frame[['A', 'B']])
+        correl = unweighted.corrwith(frame[['A', 'B']])
+        assert_allclose(correl['A'], 1, atol=1e-2)
+        assert_allclose(correl['B'], 1, atol=1e-2)
+        assert np.isnan(correl['C'])
+    else:
+        with pytest.raises(ValueError):
+            frame.corrwith(unweighted.A)
+
+        with pytest.raises(ValueError):
+            frame.corrwith(unweighted[['A', 'B']])
+
+        with pytest.raises(ValueError):
+            unweighted.corrwith(frame[['A', 'B']])
 
     # For uniform weights, weighted corrwith should match unweighted with
     # ddof=0.
@@ -203,7 +220,7 @@ def test_WeightedDataFrame_corrwith(frame):
     correl_1 = unweighted[:5].corrwith(unweighted[:4], axis=1)
     correl_2 = frame[:5].corrwith(frame[:4], axis=1)
     # Allow for difference due to ddof=0 vs ddof=1 approach
-    assert_allclose(correl_1.values[:-1], correl_2.values[:-1], rtol=0.3)
+    assert_allclose(correl_1.values[:-1], correl_2.values[:-1], rtol=1e-12)
     assert np.isnan(correl_1.values[-1]) and np.isnan(correl_2.values[-1])
     assert correl_2.isweighted()
 
@@ -213,11 +230,11 @@ def test_WeightedDataFrame_corrwith(frame):
 
     correl_4 = frame.T.corrwith(frame.T, axis=1)
     correl_5 = unweighted.T.corrwith(unweighted.T, axis=1)
-    assert_allclose(correl_4, correl_5)
+    assert_allclose(correl_4, correl_5, rtol=1e-12)
 
     frame.set_weights(None, inplace=True)
     assert_allclose(frame.corrwith(frame), unweighted.corrwith(unweighted),
-                    rtol=1e-4)
+                    rtol=1e-12)
 
 
 def test_WeightedDataFrame_median(frame):
@@ -517,11 +534,16 @@ def test_WeightedSeries_corr(frame):
 
     unweighted = DataFrame(frame).droplevel('weights')
 
-    with pytest.raises(ValueError):
-        frame.A.corr(unweighted.B)
+    if version.parse(pandas.__version__) >= version.parse('3.0.0'):
+        assert_allclose(frame.A.corr(unweighted.A), 1, atol=1e-2)
+        assert_allclose(frame.A.corr(unweighted.B), 0, atol=1e-2)
+        assert_allclose(unweighted.A.corr(frame.B), 0, atol=1e-2)
+    else:
+        with pytest.raises(ValueError):
+            frame.A.corr(unweighted.B)
 
-    with pytest.raises(ValueError):
-        unweighted.A.corr(frame.B)
+        with pytest.raises(ValueError):
+            unweighted.A.corr(frame.B)
 
 
 def test_WeightedSeries_median(series):
@@ -995,7 +1017,10 @@ def test_BoxPlot(mcmc_df, mcmc_wdf):
     mcmc_wdf.boxplot(ylabel='ylabel', ax=ax)
 
     fig, ax = plt.subplots()
-    mcmc_wdf.boxplot(vert=False, ax=ax)
+    if version.parse(matplotlib.__version__) >= version.parse('3.10.0'):
+        mcmc_wdf.boxplot(orientation='horizontal', ax=ax)
+    else:
+        mcmc_wdf.boxplot(vert=False, ax=ax)
 
     fig, ax = plt.subplots()
     mcmc_wdf.boxplot(fontsize=30, ax=ax)
@@ -1106,7 +1131,7 @@ def test_multiindex(mcmc_wdf):
 
 
 def test_weight_passing(mcmc_wdf):
-    weights = mcmc_wdf.get_weights()
+    weights = mcmc_wdf.get_weights().copy()
     new_wdf = WeightedDataFrame(mcmc_wdf.copy(), weights=None)
     assert (new_wdf.get_weights() == mcmc_wdf.get_weights()).all()
 

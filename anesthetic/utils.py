@@ -1080,6 +1080,10 @@ def adjust_docstrings(obj, pattern, repl, *args, **kwargs):
         for key, val in obj.__dict__.items():
             doc = inspect.getdoc(val)
             if doc is not None:
+                i = doc.find("See Also")
+                j = doc.find("Examples")
+                if i != -1:
+                    doc = doc[:i] if j == -1 else doc[:i] + doc[j:]
                 newdoc = re.sub(pattern, repl, doc, *args, **kwargs)
                 try:
                     obj.__dict__[key].__doc__ = newdoc
@@ -1088,5 +1092,9 @@ def adjust_docstrings(obj, pattern, repl, *args, **kwargs):
     else:
         doc = inspect.getdoc(obj)
         if doc is not None:
+            i = doc.find("See Also")
+            j = doc.find("Examples")
+            if i != -1:
+                doc = doc[:i] if j == -1 else doc[:i] + doc[j:]
             newdoc = re.sub(pattern, repl, doc, *args, **kwargs)
             obj.__doc__ = newdoc
