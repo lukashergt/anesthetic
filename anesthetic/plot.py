@@ -27,7 +27,7 @@ from anesthetic.utils import (sample_compression_1d, quantile,
                               triangular_sample_compression_2d,
                               iso_probability_contours,
                               match_contour_to_contourf, histogram_bin_edges)
-from anesthetic.boundary import cut_and_normalise_gaussian
+from anesthetic.boundary import boundary_correction_1d, boundary_correction_2d
 
 
 class AxesSeries(Series):
@@ -950,6 +950,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     nplot = kwargs.pop('nplot_1d', 100)
     bw_method = kwargs.pop('bw_method', None)
     bw_scale = kwargs.pop('bw_scale', 1)
+    order = kwargs.pop('order', 1)
     levels = kwargs.pop('levels', [0.95, 0.68])
     density = kwargs.pop('density', False)
 
@@ -980,32 +981,29 @@ def kde_plot_1d(ax, data, *args, **kwargs):
 
     data_compressed, w = sample_compression_1d(data, weights, ncompress)
     kde = gaussian_kde(data_compressed, weights=w, bw_method=bw_method)
-    kde.set_bandwidth(bw_method=kde.factor*bw_scale)
+    kde.set_bandwidth(bw_method=kde.factor * bw_scale)
 
-    p = kde(x)
+    p = boundary_correction_1d(kde, x, kde.covariance, order=order,
+                               xmin=max(xmin, data.min()),
+                               xmax=min(xmax, data.max()))
     p /= p.max()
-    bw = np.sqrt(kde.covariance[0, 0])
-    pp = cut_and_normalise_gaussian(x, p, bw,
-                                    xmin=max(xmin, np.min(data)),
-                                    xmax=min(xmax, np.max(data)))
-    pp /= pp.max()
     if version.parse(np.__version__) >= version.parse("2.0.0"):
         trapezoid = np.trapezoid
     else:
         trapezoid = np.trapz
-    area = trapezoid(x=x, y=pp) if density else 1
+    area = trapezoid(x=x, y=p) if density else 1
     if ax.get_xaxis().get_scale() == 'log':
         x = 10**x
-    ans = ax.plot(x, pp/area, color=color, *args, **kwargs)
+    ans = ax.plot(x, p/area, color=color, *args, **kwargs)
 
     if facecolor and facecolor not in ['None', 'none']:
         if facecolor is True:
             facecolor = color
-        c = iso_probability_contours(pp, contours=levels)
+        c = iso_probability_contours(p, contours=levels)
         cmap = basic_cmap(facecolor)
         fill = []
         for j in range(len(c)-1):
-            fill.append(ax.fill_between(x, pp, where=pp >= c[j],
+            fill.append(ax.fill_between(x, p, where=p >= c[j],
                         color=cmap(c[j]), edgecolor=edgecolor))
 
         ans = ans, fill
@@ -1316,6 +1314,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     nplot = kwargs.pop('nplot_2d', 1000)
     bw_method = kwargs.pop('bw_method', None)
     bw_scale = kwargs.pop('bw_scale', 1)
+    order = kwargs.pop('order', 1)
     label = kwargs.pop('label', None)
     zorder = kwargs.pop('zorder', 1)
     levels = kwargs.pop('levels', [0.95, 0.68])
@@ -1352,18 +1351,13 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     tri, w = triangular_sample_compression_2d(data_x, data_y, cov,
                                               weights, ncompress)
     kde = gaussian_kde([tri.x, tri.y], weights=w, bw_method=bw_method)
-    kde.set_bandwidth(bw_method=kde.factor*bw_scale)
+    kde.set_bandwidth(bw_method=kde.factor * bw_scale)
 
-    P = kde([X.ravel(), Y.ravel()]).reshape(X.shape)
-
-    bw_x = np.sqrt(kde.covariance[0, 0])
-    P = cut_and_normalise_gaussian(X, P, bw=bw_x,
-                                   xmin=min((data_x.min(), xmin)),
-                                   xmax=max((data_x.max(), xmax)))
-    bw_y = np.sqrt(kde.covariance[1, 1])
-    P = cut_and_normalise_gaussian(Y, P, bw=bw_y,
-                                   xmin=min((data_y.min(), ymin)),
-                                   xmax=max((data_y.max(), ymax)))
+    P = boundary_correction_2d(kde, X, Y, kde.covariance, order=order,
+                               xmin=max(xmin, data_x.min()),
+                               xmax=min(xmax, data_x.max()),
+                               ymin=max(ymin, data_y.min()),
+                               ymax=min(ymax, data_y.max()))
 
     levels = iso_probability_contours(P, contours=levels)
     if ax.get_xaxis().get_scale() == 'log':
