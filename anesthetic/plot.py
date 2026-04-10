@@ -977,8 +977,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     kde.set_bandwidth(bw_method=kde.factor * bw_scale)
 
     p = boundary_correction_1d(kde, x, kde.covariance, order=order,
-                               xmin=max(xmin, data.min()),
-                               xmax=min(xmax, data.max()))
+                               xmin=data.min(), xmax=data.max())
     p /= p.max()
     if version.parse(np.__version__) >= version.parse("2.0.0"):
         trapezoid = np.trapezoid
@@ -1322,7 +1321,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
             y = np.union1d(y, [np.nextafter(edge, -np.inf),
                                edge,
                                np.nextafter(edge, np.inf)])
-    X, Y = np.meshgrid(x, y)
+    X, Y = np.meshgrid(x, y, indexing='ij')
 
     cov = np.cov(data_x, data_y, aweights=weights)
     tri, w = triangular_sample_compression_2d(data_x, data_y, cov,
@@ -1331,10 +1330,8 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     kde.set_bandwidth(bw_method=kde.factor * bw_scale)
 
     P = boundary_correction_2d(kde, X, Y, kde.covariance, order=order,
-                               xmin=max(xmin, data_x.min()),
-                               xmax=min(xmax, data_x.max()),
-                               ymin=max(ymin, data_y.min()),
-                               ymax=min(ymax, data_y.max()))
+                               xmin=data_x.min(), xmax=data_x.max(),
+                               ymin=data_y.min(), ymax=data_y.max())
 
     levels = iso_probability_contours(P, contours=levels)
     if ax.get_xaxis().get_scale() == 'log':
