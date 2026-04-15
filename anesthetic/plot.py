@@ -977,7 +977,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     kde = gaussian_kde(data_compressed, weights=w, bw_method=bw_method)
     kde.set_bandwidth(bw_method=kde.factor * bw_scale)
 
-    p = boundary_correction_1d(kde, x, kde.covariance, order=order,
+    p = boundary_correction_1d(kde, x, order=order,
                                xmin=data.min(), xmax=data.max())
     p /= p.max()
     if version.parse(np.__version__) >= version.parse("2.0.0"):
@@ -1334,14 +1334,14 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
                            xmin=data_x.min(), xmax=data_x.max(),
                            ymin=data_y.min(), ymax=data_y.max())
     # Density on the meshgrid, used for drawing the contours.
-    P_plot = boundary_correction_2d(kde, X, Y, kde.covariance,
+    P_plot = boundary_correction_2d(kde, X, Y,
                                     **boundary_kwargs)
     # Density at sample vertices, used for computing iso-probability levels
     # independently of the plotting window; a grid-based estimator would shift
     # contours as ``q`` narrows the window.
     P_samples = boundary_correction_2d(kde,
                                        np.asarray(tri.x), np.asarray(tri.y),
-                                       kde.covariance, **boundary_kwargs)
+                                       **boundary_kwargs)
     levels = iso_probability_contours_from_samples(P_samples,
                                                    contours=levels,
                                                    weights=np.asarray(w))
