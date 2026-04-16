@@ -189,11 +189,13 @@ def _kde_eval(kde, x):
     weighted_fields[:, 0] = kde.weights  # (N,)
     weighted_fields[:, 1:] = kde.weights[:, None] * kde.dataset.T  # (N, d)
 
-    estimate = gaussian_kernel_estimate[spec](kde.dataset.T,
-                                              weighted_fields,
-                                              x,
-                                              kde.cho_cov,
-                                              output_dtype)
+    estimate = gaussian_kernel_estimate[spec](
+        points=kde.dataset.T,
+        values=weighted_fields,
+        xi=x,
+        cho_cov=kde.cho_cov,
+        dtype=output_dtype,
+    )
     f = estimate[:, 0]  # (M,)
 
     # Convert first raw moments into bandwidth-scaled residual moments.
