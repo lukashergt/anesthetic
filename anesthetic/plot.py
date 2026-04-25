@@ -1264,6 +1264,20 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
         :class:`scipy.stats.gaussian_kde`. A value greater 1 will smooth more,
         a value smaller 1 will smooth less.
 
+    grid_angle : float or (float, float), optional
+        Manual orientation of the plotting grid, in degrees measured
+        counter-clockwise from the +x axis. If set, forces use of the
+        basis-aligned grid regardless of the measured correlation.
+
+        * ``None`` (default): grid axes are derived from the eigenvectors of
+          the sample covariance when the correlation is high, else the grid is
+          axis-aligned.
+        * ``float``: direction of the major grid axis. The minor grid
+          axis is placed perpendicular to it.
+        * ``(major, minor)``: both grid axis directions specified explicitly.
+          If the two are not perpendicular, grid cells become parallelograms
+          rather than rectangles.
+
     Returns
     -------
     c : :class:`matplotlib.contour.QuadContourSet`
@@ -1288,6 +1302,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
 
     ncompress = kwargs.pop('ncompress', 'equal')
     nplot = kwargs.pop('nplot_2d', 1000)
+    grid_angle = kwargs.pop('grid_angle', None)
     bw_method = kwargs.pop('bw_method', None)
     bw_scale = kwargs.pop('bw_scale', 1)
     order = kwargs.pop('order', 1)
@@ -1302,6 +1317,25 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     facecolor, edgecolor, cmap = set_colors(c=color, fc=facecolor,
                                             ec=edgecolor, cmap=cmap)
 
+    # Regularise degenerate input (collinear or constant data) by injecting
+    # small noise so that the covariance is positive-definite for Cholesky
+    # decomposition in scaled_triangulation and gaussian_kde.
+    cov = np.cov(data_x, data_y, aweights=weights)
+    (var_x, cov_xy), (cov_yx, var_y) = cov
+    corr = 0 if var_x <= 0 or var_y <= 0 else abs(cov_xy)/np.sqrt(var_x*var_y)
+    eig = None
+    if var_x <= 0 or var_y <= 0 or corr > 1 - np.sqrt(np.finfo(float).eps):
+        eig = np.linalg.eigh(cov)
+        evals, evecs = eig
+        noise = np.sqrt(max(0, evals[0])) * 1e-3
+        noise += np.sqrt(max(0, evals[1])) * 1e-3 if abs(cov_xy) > 0 else 0
+        noise += _plot_window(ax, 'x') * 1e-3 if var_x <= 0 else 0
+        noise += _plot_window(ax, 'y') * 1e-3 if var_y <= 0 else 0
+        noise = noise * np.random.normal(size=data_x.size)
+        data_x = data_x.copy() + noise * evecs[0, 0]
+        data_y = data_y.copy() + noise * evecs[1, 0]
+        cov = np.cov(data_x, data_y, aweights=weights)
+
     q = kwargs.pop('q', 5)
     q = quantile_plot_interval(q=q)
     xmin = quantile(data_x, q[0], weights)
@@ -1310,22 +1344,29 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     ymax = quantile(data_y, q[-1], weights)
     xmin, xmax = apply_margin(xmin, xmax, kwargs.pop('xmargin', 0))
     ymin, ymax = apply_margin(ymin, ymax, kwargs.pop('ymargin', 0))
-    x = np.linspace(xmin, xmax, int(np.sqrt(nplot)))
-    y = np.linspace(ymin, ymax, int(np.sqrt(nplot)))
-    for edge in [data_x.min(), data_x.max()]:
-        if xmin <= edge <= xmax:
-            x = np.union1d(x, [np.nextafter(edge, -np.inf),
-                               edge,
-                               np.nextafter(edge, np.inf)])
-    for edge in [data_y.min(), data_y.max()]:
-        if ymin <= edge <= ymax:
-            y = np.union1d(y, [np.nextafter(edge, -np.inf),
-                               edge,
-                               np.nextafter(edge, np.inf)])
-    X, Y = np.meshgrid(x, y, indexing='ij')
+    ngrid = int(np.sqrt(nplot))
+    if corr > 0.99 or grid_angle is not None:
+        if grid_angle is None and eig is None:
+            eig = np.linalg.eigh(cov)
+        X, Y = _basis_aligned_grid(data_x, data_y, eig, ngrid,
+                                   xmin, xmax, ymin, ymax,
+                                   grid_angle=grid_angle)
+    else:
+        x = np.linspace(xmin, xmax, ngrid)
+        y = np.linspace(ymin, ymax, ngrid)
+        for edge in [data_x.min(), data_x.max()]:
+            if xmin <= edge <= xmax:
+                x = np.union1d(x, [np.nextafter(edge, -np.inf),
+                                   edge,
+                                   np.nextafter(edge, np.inf)])
+        for edge in [data_y.min(), data_y.max()]:
+            if ymin <= edge <= ymax:
+                y = np.union1d(y, [np.nextafter(edge, -np.inf),
+                                   edge,
+                                   np.nextafter(edge, np.inf)])
+        X, Y = np.meshgrid(x, y, indexing='ij')
     x_grid, y_grid = X.ravel(), Y.ravel()
 
-    cov = np.cov(data_x, data_y, aweights=weights)
     tri, w = triangular_sample_compression_2d(data_x, data_y, cov,
                                               weights, ncompress)
     kde = gaussian_kde([tri.x, tri.y], weights=w, bw_method=bw_method)
@@ -1335,7 +1376,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     # Grid values are used for plotting; sample values for computing
     # iso-probability levels independently of the plotting window.
     # Subsample vertices for level computation to avoid O(n_samples^2) cost.
-    n_samp = min(len(tri.x), max(1000, int(20 / (1 - max(levels)))))
+    n_samp = min(len(tri.x), max(1000, int(100 / (1 - max(levels)))))
     idx = np.random.choice(len(tri.x), n_samp, replace=False)
     x_samp, y_samp, w_samp = tri.x[idx], tri.y[idx], w[idx]
 
@@ -1623,3 +1664,104 @@ def set_colors(c, fc, ec, cmap):
         elif cmap is None:
             cmap = basic_cmap(fc)
     return fc, ec, cmap
+
+
+def _plot_window(ax, axis):
+    """Return the displayed width or height of an axis.
+
+    Uses axis limits from ``viewLim`` when explicitly set via
+    ``set_xlim``/``set_ylim``, or from ``dataLim`` when prior data has been
+    plotted. Raises ``ValueError`` if neither is available.
+    """
+    if axis == 'x':
+        has_limits = not ax.get_autoscalex_on()
+        interval = ax.viewLim.intervalx if has_limits else ax.dataLim.intervalx
+        scale = ax.get_xscale()
+        z = ax.get_xlabel() if ax.get_xlabel() else ax.xaxis.axis_name
+    else:
+        has_limits = not ax.get_autoscaley_on()
+        interval = ax.viewLim.intervaly if has_limits else ax.dataLim.intervaly
+        scale = ax.get_yscale()
+        z = ax.get_ylabel() if ax.get_ylabel() else ax.yaxis.axis_name
+    if np.isfinite(interval).all():
+        if scale == 'log':
+            interval = np.log10(interval)
+        return (interval[1] - interval[0])
+    if ax.__class__.__name__ == 'OffDiagonalAxes':
+        axes_name = f"axes['{ax.get_xlabel()}']['{ax.get_ylabel()}']"
+    else:
+        axes_name = "ax"
+    raise ValueError(
+        f"Cannot plot KDE contours: the `{z}` variable has zero variance "
+        f"and no axis limits are set. Call {axes_name}.set_{axis}lim(...) "
+        f"before (and not again after!) plotting to define the display range."
+    )
+
+
+def _basis_aligned_grid(data_x, data_y, eig, ngrid,
+                        xmin, xmax, ymin, ymax, grid_angle=None):
+    """Return a basis-aligned grid clipped to the axis-aligned plot window.
+
+    By default the minor and major grid directions are the eigenvectors
+    of the sample covariance (ascending eigenvalues). If ``grid_angle``
+    is provided, it overrides the covariance-derived axes: a scalar sets
+    the major axis direction (minor is placed perpendicular), a pair
+    ``(major, minor)`` sets both explicitly. Angles are in degrees
+    counter-clockwise from the +x axis. When the two axes are not
+    perpendicular the grid cells are parallelograms.
+    """
+    if grid_angle is None:
+        _, evecs = eig
+        u_vec = evecs[:, 0].copy()  # minor axis
+        v_vec = evecs[:, 1].copy()  # major axis
+    else:
+        if np.ndim(grid_angle) == 0:
+            major, minor = grid_angle, grid_angle + 90.0
+        else:
+            major, minor = grid_angle
+        v_vec = np.array([np.cos(np.deg2rad(major)),
+                          np.sin(np.deg2rad(major))])
+        u_vec = np.array([np.cos(np.deg2rad(minor)),
+                          np.sin(np.deg2rad(minor))])
+        if abs(u_vec[0] * v_vec[1] - u_vec[1] * v_vec[0]) < 1e-10:
+            raise ValueError(f"grid_angle major ({major}) and minor ({minor}) "
+                             f"axes are (near-)parallel; cannot build a grid.")
+
+    # Snap near-zero components (e.g. cos(90°) ≈ 6e-17) to zero so
+    # axis-aligned basis vectors are exact.
+    v_vec[np.abs(v_vec) < 1e-12] = 0.0
+    u_vec[np.abs(u_vec) < 1e-12] = 0.0
+
+    M = np.column_stack([u_vec, v_vec])
+    uv_data = np.linalg.solve(M, np.vstack([data_x, data_y]))
+    u = uv_data[0]
+    xy_corners = np.array([[xmin, ymin],
+                           [xmin, ymax],
+                           [xmax, ymin],
+                           [xmax, ymax]])
+    uv_corners = np.linalg.solve(M, xy_corners.T).T
+    umin_corner = uv_corners[:, 0].min()
+    umax_corner = uv_corners[:, 0].max()
+    umin = max(umin_corner, u.min())
+    umax = min(umax_corner, u.max())
+    vmin = uv_corners[:, 1].min()
+    vmax = uv_corners[:, 1].max()
+    u_grid = np.linspace(umin, umax, ngrid)
+    rows = []
+    for ui in u_grid:
+        vlo = vmin
+        vhi = vmax
+        for vj, uj, zmin, zmax in [(v_vec[0], u_vec[0]*ui, xmin, xmax),
+                                   (v_vec[1], u_vec[1]*ui, ymin, ymax)]:
+            if vj == 0:
+                continue
+            a = (zmin - uj) / vj
+            b = (zmax - uj) / vj
+            vlo = max(vlo, min(a, b))
+            vhi = min(vhi, max(a, b))
+        rows.append((vlo, vhi, ui))
+    U = np.array([np.full(ngrid, ui) for _, _, ui in rows])
+    V = np.array([np.linspace(vlo, vhi, ngrid) for vlo, vhi, _ in rows])
+    X = u_vec[0] * U + v_vec[0] * V
+    Y = u_vec[1] * U + v_vec[1] * V
+    return X, Y
