@@ -47,11 +47,8 @@ def test_boundary_correction_1d():
     w = stats.norm.pdf(d)
     num = 301
     x = np.linspace(d.min(), d.max(), num)
-    x = np.union1d(
-        x,
-        [np.nextafter(x[0], -np.inf), np.nextafter(x[0], np.inf),
-         np.nextafter(x[-1], -np.inf), np.nextafter(x[-1], np.inf)],
-    )
+    x = np.union1d(x, [np.nextafter(x[0], -np.inf),
+                       np.nextafter(x[-1], np.inf)])
     truth = stats.norm.pdf(x) / stats.norm.pdf(x).max()
 
     _, ax = plt.subplots()
@@ -67,9 +64,9 @@ def test_boundary_correction_1d():
     assert np.all(p0.get_ydata() >= 0)
     assert np.all(p1.get_ydata() >= 0)
 
-    assert_array_equal(pn.get_xdata()[1:-1], t.get_xdata()[1:-1])
-    assert_array_equal(p0.get_xdata()[1:-1], t.get_xdata()[1:-1])
-    assert_array_equal(p1.get_xdata()[1:-1], t.get_xdata()[1:-1])
+    assert_array_equal(pn.get_xdata(), t.get_xdata())
+    assert_array_equal(p0.get_xdata(), t.get_xdata())
+    assert_array_equal(p1.get_xdata(), t.get_xdata())
 
     residual_n = np.abs(pn.get_ydata()[1:-1] / t.get_ydata()[1:-1] - 1)
     residual_0 = np.abs(p0.get_ydata()[1:-1] / t.get_ydata()[1:-1] - 1)
