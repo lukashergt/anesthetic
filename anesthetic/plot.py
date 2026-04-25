@@ -817,7 +817,6 @@ def fastkde_plot_1d(ax, data, *args, **kwargs):
         data = np.log10(data)
     xmin = kwargs.pop('xmin', None)
     xmax = kwargs.pop('xmax', None)
-    xmin, xmax = apply_margin(xmin, xmax, kwargs.pop('xmargin', 0))
     levels = kwargs.pop('levels', [0.95, 0.68])
     density = kwargs.pop('density', False)
 
@@ -965,7 +964,6 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     q = quantile_plot_interval(q=q)
     xmin = quantile(data, q[0], weights)
     xmax = quantile(data, q[-1], weights)
-    xmin, xmax = apply_margin(xmin, xmax, kwargs.pop('xmargin', 0))
     x = np.linspace(xmin, xmax, nplot)
     for edge in [data.min(), data.max()]:
         if xmin <= edge <= xmax:
@@ -1062,7 +1060,6 @@ def hist_plot_1d(ax, data, *args, **kwargs):
         data = np.log10(data)
     xmin = quantile(data, q[0], weights)
     xmax = quantile(data, q[-1], weights)
-    xmin, xmax = apply_margin(xmin, xmax, kwargs.pop('xmargin', 0))
     if 'range' in kwargs and ax.get_xaxis().get_scale() == 'log':
         range = kwargs.pop('range')
         if range is not None:
@@ -1147,8 +1144,6 @@ def fastkde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     xmax = kwargs.pop('xmax', None)
     ymin = kwargs.pop('ymin', None)
     ymax = kwargs.pop('ymax', None)
-    xmin, xmax = apply_margin(xmin, xmax, kwargs.pop('xmargin', 0))
-    ymin, ymax = apply_margin(ymin, ymax, kwargs.pop('ymargin', 0))
     if ax.get_xaxis().get_scale() == 'log':
         data_x = np.log10(data_x)
         xmin = None if xmin is None else np.log10(xmin)
@@ -1342,8 +1337,6 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     xmax = quantile(data_x, q[-1], weights)
     ymin = quantile(data_y, q[0], weights)
     ymax = quantile(data_y, q[-1], weights)
-    xmin, xmax = apply_margin(xmin, xmax, kwargs.pop('xmargin', 0))
-    ymin, ymax = apply_margin(ymin, ymax, kwargs.pop('ymargin', 0))
     ngrid = int(np.sqrt(nplot))
     if corr > 0.99 or grid_angle is not None:
         if grid_angle is None and eig is None:
@@ -1478,8 +1471,6 @@ def hist_plot_2d(ax, data_x, data_y, *args, **kwargs):
     xmax = quantile(data_x, q[-1], weights)
     ymin = quantile(data_y, q[0], weights)
     ymax = quantile(data_y, q[-1], weights)
-    xmin, xmax = apply_margin(xmin, xmax, kwargs.pop('xmargin', 0))
-    ymin, ymax = apply_margin(ymin, ymax, kwargs.pop('ymargin', 0))
     rge = kwargs.pop('range', ((xmin, xmax), (ymin, ymax)))
 
     bins = kwargs.pop('bins', 10)
@@ -1544,8 +1535,6 @@ def scatter_plot_2d(ax, data_x, data_y, *args, **kwargs):
         :meth:`matplotlib.axes.Axes.plot` command).
 
     """
-    kwargs.pop('xmargin', None)
-    kwargs.pop('ymargin', None)
     kwargs = normalize_kwargs(
         kwargs,
         alias_mapping=dict(lw=['linewidth', 'linewidths'],
@@ -1581,31 +1570,6 @@ def scatter_plot_2d(ax, data_x, data_y, *args, **kwargs):
 def basic_cmap(color):
     """Construct basic colormap a single color."""
     return LinearSegmentedColormap.from_list(str(color), ['#ffffff', color])
-
-
-def apply_margin(xmin, xmax, margin):
-    """Apply margin to extend the plotting range.
-
-    Parameters
-    ----------
-    xmin, xmax : float
-        Original range boundaries.
-    margin : float or tuple
-        Fraction of the range to add. If a scalar, applied symmetrically.
-        If a tuple, ``(left, right)`` fractions.
-
-    Returns
-    -------
-    xmin, xmax : float
-        Extended range boundaries.
-
-    """
-    if not margin:
-        return xmin, xmax
-    if isinstance(margin, (int, float)):
-        margin = (margin, margin)
-    xdelta = xmax - xmin
-    return xmin - margin[0] * xdelta, xmax + margin[1] * xdelta
 
 
 def quantile_plot_interval(q):
