@@ -1298,7 +1298,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     grid_angle = kwargs.pop('grid_angle', None)
     bw_method = kwargs.pop('bw_method', None)
     bw_scale = kwargs.pop('bw_scale', 1)
-    order = kwargs.pop('order', 1)
+    order = kwargs.pop('order', None)
     label = kwargs.pop('label', None)
     zorder = kwargs.pop('zorder', 1)
     levels = kwargs.pop('levels', [0.95, 0.68])
@@ -1339,9 +1339,10 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     if corr > 0.99 or grid_angle is not None:
         if grid_angle is None and eig is None:
             eig = np.linalg.eigh(cov)
-        X, Y, edge_mask = _basis_aligned_grid(data_x, data_y, eig, ngrid,
-                                              xmin, xmax, ymin, ymax,
-                                              grid_angle=grid_angle)
+        X, Y, n_vec, n_min, n_max = _basis_aligned_grid(
+            data_x, data_y, eig, ngrid, xmin, xmax, ymin, ymax, grid_angle
+        )
+        n_kwargs = dict(n_vec=n_vec, nmin=n_min, nmax=n_max)
     else:
         x = np.linspace(xmin, xmax, ngrid)
         y = np.linspace(ymin, ymax, ngrid)
@@ -1354,7 +1355,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
             if ymin <= edge <= ymax:
                 y = np.union1d(y, [np.nextafter(edge, direction)])
         X, Y = np.meshgrid(x, y)
-        edge_mask = np.zeros_like(X, dtype=bool)
+        n_kwargs = {}
     x_grid, y_grid = X.ravel(), Y.ravel()
 
     tri, w = triangular_sample_compression_2d(data_x, data_y, cov,
@@ -1372,14 +1373,11 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
 
     x_all = np.concatenate([x_grid, x_samp])
     y_all = np.concatenate([y_grid, y_samp])
-    boundary_kwargs = dict(order=order,
-                           xmin=data_x.min(), xmax=data_x.max(),
-                           ymin=data_y.min(), ymax=data_y.max())
-    P_all = boundary_correction_2d(kde, x_all, y_all, **boundary_kwargs)
-    P_plot = P_all[:-n_samp].reshape(X.shape).copy()
-    # Force density to zero on the outside-data rows so contours close cleanly
-    # along the rotated edges (axis-aligned BC support doesn't cover them).
-    P_plot[edge_mask] = 0.0
+    P_all = boundary_correction_2d(kde, x_all, y_all, order=order,
+                                   xmin=data_x.min(), xmax=data_x.max(),
+                                   ymin=data_y.min(), ymax=data_y.max(),
+                                   **n_kwargs)
+    P_plot = P_all[:-n_samp].reshape(X.shape)
     P_samp = P_all[-n_samp:]
     levels = iso_probability_contours_from_samples(P_samp,
                                                    contours=levels,
@@ -1705,6 +1703,11 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
     # matching the scalar grid_angle convention where minor = major + 90 deg.
     if v_vec[0] * u_vec[1] - v_vec[1] * u_vec[0] < 0:
         u_vec *= -1
+    # Use the same deterministic orientation for n, the normal to v. It points
+    # to the same side of v as u, so increasing u also increases n.
+    n_vec = np.array([-v_vec[1], v_vec[0]])
+    if n_vec @ u_vec < 0:
+        n_vec *= -1
 
     M = np.column_stack([u_vec, v_vec])
     uv_data = np.linalg.solve(M, np.vstack([data_x, data_y]))
@@ -1723,10 +1726,13 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
     u_grid = np.linspace(umin, umax, ngrid)
     # Add one row just outside the data's u extents so density can be
     # forced to zero there, giving cleanly closed contours along rotated edges.
-    outside_us = [np.nextafter(edge, direction) for edge, direction
-                  in [(u.min(), -np.inf), (u.max(), np.inf)]
-                  if umin <= edge <= umax]
-    u_grid = np.union1d(u_grid, outside_us)
+    n_proj = n_vec[0] * data_x + n_vec[1] * data_y
+    n_scale = max(1, abs(n_proj.min()), abs(n_proj.max()))
+    u_step = 32 * np.finfo(u_grid.dtype).eps * n_scale / (n_vec @ u_vec)
+    extra_edges = [edge + direction * u_step
+                   for edge, direction in [(u.min(), -1), (u.max(), +1)]
+                   if umin <= edge <= umax]
+    u_grid = np.union1d(u_grid, extra_edges)
     vlos = np.full_like(u_grid, vmin)
     vhis = np.full_like(u_grid, vmax)
     for uj, vj, zmin, zmax in [(u_vec[0], v_vec[0], xmin, xmax),
@@ -1743,7 +1749,6 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
     U = np.broadcast_to(u_grid[:, None], V.shape)
     X = u_vec[0] * U + v_vec[0] * V
     Y = u_vec[1] * U + v_vec[1] * V
-    edge_mask = np.isin(U, outside_us)
 
     # Reconstructing X/Y from U/V can move algebraic boundary points by one
     # ulp; snap the core grid back before adding deliberate outside columns.
@@ -1758,5 +1763,5 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
     Y = np.column_stack([np.nextafter(Y[:, 0], Y[:, 0] - v_vec[1]),
                          Y,
                          np.nextafter(Y[:, -1], Y[:, -1] + v_vec[1])])
-    edge_mask = np.column_stack([edge_mask[:, 0], edge_mask, edge_mask[:, -1]])
-    return X, Y, edge_mask
+
+    return X, Y, n_vec, n_proj.min(), n_proj.max()
