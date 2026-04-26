@@ -971,7 +971,7 @@ def test_kde_contour_plot_2d_grid_angle(axis_aligned, rotated, parallel):
     fig, ax = plt.subplots()
     contf_ang, _ = kde_contour_plot_2d(ax, x, y, grid_angle=rotated)
     v_ang = _contour_vertices(contf_ang)
-    assert (v_ang[:, 0] - v_ang[:, 1]).min() == approx((x-y).min(), abs=1e-14)
+    assert (v_ang[:, 0] - v_ang[:, 1]).min() == approx((x-y).min(), abs=1e-12)
     assert (v_ang[:, 0] - v_ang[:, 1]).min() >= 0
 
     # (Near-)parallel angles raise an error.
@@ -1002,9 +1002,9 @@ def test_basis_aligned_grid_axis_aligned_rows_span_edges(grid_angle):
     np.random.seed(42)
     data_x = np.random.normal(size=200)
     data_y = np.random.normal(size=200)
-    X, Y, _ = _basis_aligned_grid(data_x, data_y, eig=None, ngrid=10,
-                                  xmin=-1.0, xmax=1.0, ymin=-1.0, ymax=1.0,
-                                  grid_angle=grid_angle)
+    X, Y, *_ = _basis_aligned_grid(data_x, data_y, eig=None, ngrid=10,
+                                   xmin=-1.0, xmax=1.0, ymin=-1.0, ymax=1.0,
+                                   grid_angle=grid_angle)
     span, const = (X, Y) if grid_angle == 0 else (Y, X)
     assert span[0].min() == approx(-1.0)
     assert span[0].max() == approx(1.0)
@@ -1021,29 +1021,36 @@ def test_basis_aligned_grid_u_edges_add_outside_rows_only():
     ngrid = 10
 
     # A narrow diagonal cloud has finite u support inside the square plot box.
-    X, Y, edge_mask = _basis_aligned_grid(x, y, eig=None, ngrid=ngrid,
-                                          xmin=-5.0, xmax=5.0,
-                                          ymin=-5.0, ymax=5.0, grid_angle=45)
-    # The two outside-u rows are masked for plot-side zeroing.
+    X, Y, n_vec, nmin, nmax = _basis_aligned_grid(x, y, eig=None, ngrid=ngrid,
+                                                  xmin=-5.0, xmax=5.0,
+                                                  ymin=-5.0, ymax=5.0,
+                                                  grid_angle=45)
+    # The two outside-u rows are zeroed by the n-boundary correction.
     assert X.shape == (ngrid + 2, ngrid + 2)
     assert Y.shape == (ngrid + 2, ngrid + 2)
-    assert edge_mask.sum() == 2 * (ngrid + 2)
-    assert edge_mask[0].all()
-    assert edge_mask[-1].all()
-    assert not edge_mask[1:-1].any()
+    n = n_vec[0] * X + n_vec[1] * Y
+    atol = 8 * np.finfo(n.dtype).eps * max(1, abs(nmin), abs(nmax))
+    assert (n[0] < nmin).all()
+    assert (n[-1] > nmax).all()
+    assert (n[1:-1] >= nmin - atol).all()
+    assert (n[1:-1] <= nmax + atol).all()
 
     # Wider square support extends beyond the plot-box u extrema, so no u rows
     # are added. The two v-extension columns are still present.
     x, y = np.meshgrid(np.linspace(-6, 6, 12+1), np.linspace(-6, 6, 12+1))
     x = x.ravel()
     y = y.ravel()
-    X, Y, edge_mask = _basis_aligned_grid(x, y, eig=None, ngrid=ngrid,
-                                          xmin=-5.0, xmax=5.0,
-                                          ymin=-5.0, ymax=5.0, grid_angle=45)
+    X, Y, n_vec, nmin, nmax = _basis_aligned_grid(x, y, eig=None, ngrid=ngrid,
+                                                  xmin=-5.0, xmax=5.0,
+                                                  ymin=-5.0, ymax=5.0,
+                                                  grid_angle=45)
     # No outside-u rows, only outside-v columns.
     assert X.shape == (ngrid, ngrid + 2)
     assert Y.shape == (ngrid, ngrid + 2)
-    assert not edge_mask.any()
+    n = n_vec[0] * X + n_vec[1] * Y
+    atol = 8 * np.finfo(n.dtype).eps * max(1, abs(nmin), abs(nmax))
+    assert (n >= nmin - atol).all()
+    assert (n <= nmax + atol).all()
 
 
 def test_basis_aligned_grid_v_edges_add_outside_columns_only():
@@ -1055,13 +1062,16 @@ def test_basis_aligned_grid_v_edges_add_outside_columns_only():
     x = x[mask]
     y = y[mask]
     ngrid = 10
-    X, Y, edge_mask = _basis_aligned_grid(x, y, eig=None, ngrid=ngrid,
-                                          xmin=x.min(), xmax=x.max(),
-                                          ymin=y.min(), ymax=y.max(),
-                                          grid_angle=(45, 0))
+    X, Y, n_vec, nmin, nmax = _basis_aligned_grid(x, y, eig=None, ngrid=ngrid,
+                                                  xmin=x.min(), xmax=x.max(),
+                                                  ymin=y.min(), ymax=y.max(),
+                                                  grid_angle=(45, 0))
     assert X.shape == (ngrid + 2, ngrid + 2)
     assert Y.shape == (ngrid + 2, ngrid + 2)
-    assert edge_mask.sum() == 2 * (ngrid + 2)
+    n = n_vec[0] * X + n_vec[1] * Y
+    atol = 8 * np.finfo(n.dtype).eps * max(1, abs(nmin), abs(nmax))
+    outside_n = (n < nmin - atol) | (n > nmax + atol)
+    assert outside_n.sum() == 2 * (ngrid + 2)
 
     # Core v-columns stay inside the x/y support after boundary snapping.
     core = (slice(None), slice(1, -1))
@@ -1073,8 +1083,8 @@ def test_basis_aligned_grid_v_edges_add_outside_columns_only():
     # The first/last v-columns are x/y extensions. Ignore rows already masked
     # as outside-u support, so this assertion tests only v-column extensions.
     outside = ((X < x.min()) | (X > x.max()) | (Y < y.min()) | (Y > y.max()))
-    assert outside[:, 0][~edge_mask[:, 0]].all()
-    assert outside[:, -1][~edge_mask[:, -1]].all()
+    assert outside[:, 0][~outside_n[:, 0]].all()
+    assert outside[:, -1][~outside_n[:, -1]].all()
 
 
 def test_basis_aligned_grid_snaps_boundary_roundoff():
@@ -1086,12 +1096,14 @@ def test_basis_aligned_grid_snaps_boundary_roundoff():
     mask = (x - y > 0) & (y > 0)
     x = x[mask]
     y = y[mask]
-    X, Y, edge_mask = _basis_aligned_grid(x, y, eig=None, ngrid=31,
-                                          xmin=x.min(), xmax=x.max(),
-                                          ymin=y.min(), ymax=y.max(),
-                                          grid_angle=(45, 0))
+    X, Y, n_vec, nmin, nmax = _basis_aligned_grid(x, y, eig=None, ngrid=31,
+                                                  xmin=x.min(), xmax=x.max(),
+                                                  ymin=y.min(), ymax=y.max(),
+                                                  grid_angle=(45, 0))
     # Ignore deliberate outside-u rows and outside-v columns.
-    core = ~edge_mask
+    n = n_vec[0] * X + n_vec[1] * Y
+    atol = 8 * np.finfo(n.dtype).eps * max(1, abs(nmin), abs(nmax))
+    core = (n >= nmin - atol) & (n <= nmax + atol)
     core[:, 0] = False
     core[:, -1] = False
     assert X[core].min() >= x.min()

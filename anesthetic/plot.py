@@ -1728,7 +1728,7 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
     # forced to zero there, giving cleanly closed contours along rotated edges.
     n_proj = n_vec[0] * data_x + n_vec[1] * data_y
     n_scale = max(1, abs(n_proj.min()), abs(n_proj.max()))
-    u_step = 32 * np.finfo(u_grid.dtype).eps * n_scale / (n_vec @ u_vec)
+    u_step = 16 * np.finfo(u_grid.dtype).eps * n_scale / (n_vec @ u_vec)
     extra_edges = [edge + direction * u_step
                    for edge, direction in [(u.min(), -1), (u.max(), +1)]
                    if umin <= edge <= umax]
@@ -1753,7 +1753,7 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
     # Reconstructing X/Y from U/V can move algebraic boundary points by one
     # ulp; snap the core grid back before adding deliberate outside columns.
     for Z, zmin, zmax in [(X, xmin, xmax), (Y, ymin, ymax)]:
-        atol = 16 * np.finfo(Z.dtype).eps * max(1, abs(zmin), abs(zmax))
+        atol = 8 * np.finfo(Z.dtype).eps * max(1, abs(zmin), abs(zmax))
         Z[np.isclose(Z, zmin, rtol=0, atol=atol)] = zmin
         Z[np.isclose(Z, zmax, rtol=0, atol=atol)] = zmax
 

@@ -464,7 +464,7 @@ def boundary_correction_2d(kde, X, Y, order=None,
         # Projection can put algebraic boundary points one ulp outside.
         for edge in [nmin, nmax]:
             if edge is not None:
-                atol = 16 * np.finfo(coords_n.dtype).eps * max(1, abs(edge))
+                atol = 8 * np.finfo(coords_n.dtype).eps * max(1, abs(edge))
                 coords_n[np.isclose(coords_n, edge, rtol=0, atol=atol)] = edge
         n_limits = np.array([[-np.inf if nmin is None else nmin],
                              [+np.inf if nmax is None else nmax]])
