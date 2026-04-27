@@ -315,8 +315,6 @@ class AxesDataFrame(DataFrame):
                     axes[x][y].xaxis.set_major_locator(
                         MaxNLocator(3, prune='both'))
                     axes[x][y].xaxis.set_minor_locator(AutoMinorLocator(1))
-                    if axes[x][y] is not None:
-                        axes[x][y].name = (x, y)
         return axes
 
     @staticmethod
@@ -824,7 +822,7 @@ def fastkde_plot_1d(ax, data, *args, **kwargs):
     color = kwargs.pop('color', (ax._get_lines.get_next_color()
                                  if cmap is None
                                  else plt.get_cmap(cmap)(0.68)))
-    facecolor = kwargs.pop('facecolor', None)
+    facecolor = kwargs.pop('facecolor', False)
     if 'edgecolor' in kwargs:
         edgecolor = kwargs.pop('edgecolor')
         if edgecolor:
@@ -852,7 +850,7 @@ def fastkde_plot_1d(ax, data, *args, **kwargs):
         x = 10**x
     ans = ax.plot(x[i], p[i]/area, color=color, *args, **kwargs)
 
-    if facecolor and facecolor not in ['None', 'none']:
+    if facecolor and facecolor not in [None, 'None', 'none']:
         if facecolor is True:
             facecolor = color
         levels = iso_probability_contours(p[i], contours=levels)
@@ -952,7 +950,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     color = kwargs.pop('color', (ax._get_lines.get_next_color()
                                  if cmap is None
                                  else plt.get_cmap(cmap)(0.68)))
-    facecolor = kwargs.pop('facecolor', None)
+    facecolor = kwargs.pop('facecolor', False)
     if 'edgecolor' in kwargs:
         edgecolor = kwargs.pop('edgecolor')
         if edgecolor:
@@ -985,7 +983,7 @@ def kde_plot_1d(ax, data, *args, **kwargs):
         x = 10**x
     ans = ax.plot(x, p/area, color=color, *args, **kwargs)
 
-    if facecolor and facecolor not in ['None', 'none']:
+    if facecolor and facecolor not in [None, 'None', 'none']:
         if facecolor is True:
             facecolor = color
         levels = iso_probability_contours(p, contours=levels)
@@ -1150,13 +1148,12 @@ def fastkde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
         data_y = np.log10(data_y)
         ymin = None if ymin is None else np.log10(ymin)
         ymax = None if ymax is None else np.log10(ymax)
-
     label = kwargs.pop('label', None)
     zorder = kwargs.pop('zorder', 1)
     levels = kwargs.pop('levels', [0.95, 0.68])
 
     color = kwargs.pop('color', ax._get_lines.get_next_color())
-    facecolor = kwargs.pop('facecolor', None)
+    facecolor = kwargs.pop('facecolor', True)
     edgecolor = kwargs.pop('edgecolor', None)
     cmap = kwargs.pop('cmap', None)
     facecolor, edgecolor, cmap = set_colors(c=color, fc=facecolor,
@@ -1182,7 +1179,7 @@ def fastkde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     if ax.get_yaxis().get_scale() == 'log':
         y = 10**y
 
-    if facecolor not in ['None', 'none']:
+    if facecolor not in [None, 'None', 'none']:
         linewidths = kwargs.pop('linewidths', 0.5)
         contf = ax.contourf(x[i], y[j], pdf[np.ix_(j, i)], levels, cmap=cmap,
                             zorder=zorder, vmin=0, vmax=pdf.max(),
@@ -1304,7 +1301,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     levels = kwargs.pop('levels', [0.95, 0.68])
 
     color = kwargs.pop('color', ax._get_lines.get_next_color())
-    facecolor = kwargs.pop('facecolor', None)
+    facecolor = kwargs.pop('facecolor', True)
     edgecolor = kwargs.pop('edgecolor', None)
     cmap = kwargs.pop('cmap', None)
     facecolor, edgecolor, cmap = set_colors(c=color, fc=facecolor,
@@ -1373,23 +1370,23 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
 
     x_all = np.concatenate([x_grid, x_samp])
     y_all = np.concatenate([y_grid, y_samp])
-    P_all = boundary_correction_2d(kde, x_all, y_all, order=order,
+    p_all = boundary_correction_2d(kde, x_all, y_all, order=order,
                                    xmin=data_x.min(), xmax=data_x.max(),
                                    ymin=data_y.min(), ymax=data_y.max(),
                                    **n_kwargs)
-    P_plot = P_all[:-n_samp].reshape(X.shape)
-    P_samp = P_all[-n_samp:]
-    levels = iso_probability_contours_from_samples(P_samp,
+    P_plot = p_all[:-n_samp].reshape(X.shape)
+    p_samp = p_all[-n_samp:]
+    levels = iso_probability_contours_from_samples(p_samp,
                                                    contours=levels,
                                                    weights=w_samp)
-    vmax = max(P_plot.max(), P_samp.max())
+    vmax = max(P_plot.max(), p_samp.max())
     levels = levels + [vmax]
     if ax.get_xaxis().get_scale() == 'log':
         X = 10**X
     if ax.get_yaxis().get_scale() == 'log':
         Y = 10**Y
 
-    if facecolor not in ['None', 'none']:
+    if facecolor not in [None, 'None', 'none']:
         linewidths = kwargs.pop('linewidths', 0.5)
         contf = ax.contourf(X, Y, P_plot, levels=levels, cmap=cmap,
                             zorder=zorder, vmin=0, vmax=vmax,
@@ -1610,13 +1607,13 @@ def normalize_kwargs(kwargs, alias_mapping=None, drop=None):
 
 def set_colors(c, fc, ec, cmap):
     """Navigate interplay between possible color inputs {c, fc, ec, cmap}."""
-    if fc in ['None', 'none']:
+    if fc in [None, 'None', 'none']:
         # unfilled contours
         if ec is None and cmap is None:
             cmap = basic_cmap(c)
     else:
         # filled contours
-        if fc is True or fc is None:
+        if fc is True:
             fc = c
         if ec is None and cmap is None:
             ec = c
@@ -1696,7 +1693,7 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
 
     # Eigenvectors are sign-degenerate, and angles that differ by 180 degrees
     # describe the same grid axis. Point v towards +x, or towards +y when it
-    # is vertical, so "lower" and "upper" v edges are reproducible.
+    # is vertical, so the grid orientation is reproducible.
     if v_vec[0] < 0 or (v_vec[0] == 0 and v_vec[1] < 0):
         v_vec *= -1
     # The minor/u axis is sign-degenerate as well. Point u to the left of v,
@@ -1706,8 +1703,6 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
     # Use the same deterministic orientation for n, the normal to v. It points
     # to the same side of v as u, so increasing u also increases n.
     n_vec = np.array([-v_vec[1], v_vec[0]])
-    if n_vec @ u_vec < 0:
-        n_vec *= -1
 
     M = np.column_stack([u_vec, v_vec])
     uv_data = np.linalg.solve(M, np.vstack([data_x, data_y]))
@@ -1724,9 +1719,14 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
     vmin = uv_corners[:, 1].min()
     vmax = uv_corners[:, 1].max()
     u_grid = np.linspace(umin, umax, ngrid)
+    # Unit normal to v_vec gives a true axis perpendicular to the rotated
+    # rows. For orthonormal bases this coincides with u_vec; for sheared
+    # bases (e.g. grid_angle=(45, 0)) they differ. Project the data
+    # onto this normal so `boundary_correction_2d` can apply a
+    # separable Jones-style 1D correction along the rotated direction.
+    n_proj = n_vec[0] * data_x + n_vec[1] * data_y
     # Add one row just outside the data's u extents so density can be
     # forced to zero there, giving cleanly closed contours along rotated edges.
-    n_proj = n_vec[0] * data_x + n_vec[1] * data_y
     n_scale = max(1, abs(n_proj.min()), abs(n_proj.max()))
     u_step = 16 * np.finfo(u_grid.dtype).eps * n_scale / (n_vec @ u_vec)
     extra_edges = [edge + direction * u_step
@@ -1751,17 +1751,20 @@ def _basis_aligned_grid(data_x, data_y, eig, ngrid,
     Y = u_vec[1] * U + v_vec[1] * V
 
     # Reconstructing X/Y from U/V can move algebraic boundary points by one
-    # ulp; snap the core grid back before adding deliberate outside columns.
+    # ulp; snap the core grid back to the precise bounds.
     for Z, zmin, zmax in [(X, xmin, xmax), (Y, ymin, ymax)]:
         atol = 8 * np.finfo(Z.dtype).eps * max(1, abs(zmin), abs(zmax))
         Z[np.isclose(Z, zmin, rtol=0, atol=atol)] = zmin
         Z[np.isclose(Z, zmax, rtol=0, atol=atol)] = zmax
 
-    X = np.column_stack([np.nextafter(X[:, 0], X[:, 0] - v_vec[0]),
-                         X,
-                         np.nextafter(X[:, -1], X[:, -1] + v_vec[0])])
-    Y = np.column_stack([np.nextafter(Y[:, 0], Y[:, 0] - v_vec[1]),
-                         Y,
-                         np.nextafter(Y[:, -1], Y[:, -1] + v_vec[1])])
+    # Exand the grid at the boundaries for cleanly closed contours.
+    if xmin <= data_x.min() or ((ymin <= data_y.min() and v_vec[1] >= 0) or
+                                (ymax >= data_y.max() and v_vec[1] <= 0)):
+        X = np.column_stack([np.nextafter(X[:, 0], X[:, 0] - v_vec[0]), X])
+        Y = np.column_stack([np.nextafter(Y[:, 0], Y[:, 0] - v_vec[1]), Y])
+    if xmax >= data_x.max() or ((ymax >= data_y.max() and v_vec[1] >= 0) or
+                                (ymin <= data_y.min() and v_vec[1] <= 0)):
+        X = np.column_stack([X, np.nextafter(X[:, -1], X[:, -1] + v_vec[0])])
+        Y = np.column_stack([Y, np.nextafter(Y[:, -1], Y[:, -1] + v_vec[1])])
 
     return X, Y, n_vec, n_proj.min(), n_proj.max()

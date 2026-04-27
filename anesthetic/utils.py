@@ -863,7 +863,6 @@ def triangular_sample_compression_2d(x, y, cov, w=None, n=1000):
     if w is None:
         w = np.ones_like(x)
 
-    # TODO: check for uniqueness, merge duplicates, add weights
     if n is False:
         n = len(x)
     elif n is True or isinstance(n, str):
@@ -894,9 +893,6 @@ def triangular_sample_compression_2d(x, y, cov, w=None, n=1000):
         tri = scaled_triangulation(x[i], y[i], cov)
         trifinder = tri.get_trifinder()
         j = trifinder(x, y)
-    if np.any(j < 0):
-        raise RuntimeError("Some points could not be assigned to "
-                           "triangulation. Maybe try changing `ncompress`.")
     k = tri.triangles[j]
 
     # Barycentric redistribution preserves total mass and local first moments.
