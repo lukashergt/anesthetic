@@ -1337,7 +1337,8 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
     ymin = quantile(data_y, q[0], weights)
     ymax = quantile(data_y, q[-1], weights)
     ngrid = int(np.sqrt(nplot))
-    if corr > 0.99 or grid_angle is not None:
+    if (corr > 0.99 or grid_angle is not None) and grid_angle is not False:
+        # rotated grid for very correlated data or explicitly set `grid_angle`
         if grid_angle is None and eig is None:
             eig = np.linalg.eigh(cov)
         X, Y, n_vec, n_min, n_max = _basis_aligned_grid(
@@ -1345,6 +1346,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
         )
         n_kwargs = dict(n_vec=n_vec, nmin=n_min, nmax=n_max)
     else:
+        # regular (un-rotated) grid otherwise
         x = np.linspace(xmin, xmax, ngrid)
         y = np.linspace(ymin, ymax, ngrid)
         for edge, direction in [(data_x.min(), -np.inf),
