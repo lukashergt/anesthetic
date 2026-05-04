@@ -1247,6 +1247,17 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
           effective samples in :func:`anesthetic.utils.neff`
           with ``beta=ncompress``.
 
+    q, qx, qy : int or float or tuple, default=5
+        Quantile(s) to determine the data range to be plotted.
+        The quantiles `qx` and `qy` in x- and y-direction, respectively, are
+        by default the same and grouped as `q`, but can optionally be
+        specified separately.
+
+        * ``0``: full data range, i.e. ``q=0`` --> quantile range (0, 1)
+        * ``int``: q-sigma range, e.g. ``q=1`` --> quantile range (0.16, 0.84)
+        * ``float``: percentile, e.g. ``q=0.8`` --> quantile range (0.1, 0.9)
+        * ``tuple``: quantile range, e.g. (0.16, 0.84)
+
     nplot_2d : int, default=1000
         Number of plotting points to use.
 
@@ -1331,11 +1342,14 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
         cov = np.cov(data_x, data_y, aweights=weights)
 
     q = kwargs.pop('q', 5)
-    q = quantile_plot_interval(q=q)
-    xmin = quantile(data_x, q[0], weights)
-    xmax = quantile(data_x, q[-1], weights)
-    ymin = quantile(data_y, q[0], weights)
-    ymax = quantile(data_y, q[-1], weights)
+    qx = kwargs.pop('qx', q)
+    qy = kwargs.pop('qy', q)
+    qx = quantile_plot_interval(q=qx)
+    qy = quantile_plot_interval(q=qy)
+    xmin = quantile(data_x, qx[0], weights)
+    xmax = quantile(data_x, qx[-1], weights)
+    ymin = quantile(data_y, qy[0], weights)
+    ymax = quantile(data_y, qy[-1], weights)
     ngrid = int(np.sqrt(nplot))
     if (corr > 0.99 or grid_angle is not None) and grid_angle is not False:
         # rotated grid for very correlated data or explicitly set `grid_angle`
