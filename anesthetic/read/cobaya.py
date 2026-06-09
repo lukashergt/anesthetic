@@ -20,9 +20,10 @@ def read_paramnames(root):
         header = f.readline()[1:]
         paramnames = header.split()[2:]
         try:
-            from getdist import loadMCSamples
-            s = loadMCSamples(file_root=root, no_cache=True)
-            labels = {p.name: '$' + p.label + '$' for p in s.paramNames.names}
+            from getdist.cobaya_interface import cobaya_params_file
+            from getdist.paramnames import ParamNames
+            params = ParamNames(cobaya_params_file(root))
+            labels = {p.name: '$' + p.label + '$' for p in params.names}
             for p in paramnames:
                 if p == 'minuslogprior':
                     labels.update({p: '$-\\ln\\pi$'})
