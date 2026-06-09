@@ -498,6 +498,15 @@ def _compute_burn_in(burn_in, chain_lengths):
                     np.minimum(ndrop, chain_lengths))
 
 
+def _thin_weights(weights, thin):
+    """Thin integer frequency weights without expanding the samples."""
+    if not isinstance(thin, (int, np.integer)) or thin < 1:
+        raise ValueError("`thin` must be a positive integer.")
+    end = np.cumsum(weights)
+    start = end - weights
+    return (end - 1) // thin - (start - 1) // thin
+
+
 class MCMCSamples(Samples):
     """Storage and plotting tools for MCMC samples.
 
@@ -570,6 +579,33 @@ class MCMCSamples(Samples):
         if reset_index:
             data = data.reset_index(drop=True, inplace=inplace)
         return data
+
+    def thin(self, thin, inplace=False):
+        """Thin each MCMC chain, accounting for integer frequency weights.
+
+        Parameters
+        ----------
+        thin : int
+            Keep every ``thin``-th sample in the expanded MCMC chains
+            represented by the integer weights.
+
+        inplace : bool, default=False
+            Indicates whether to modify the existing array or return a copy.
+
+        """
+        weights = self.get_weights()
+        selected_weights = np.empty_like(weights)
+        chains = self.groupby(('chain', '$n_\\mathrm{chain}$'), sort=False)
+        for index in chains.indices.values():
+            selected_weights[index] = _thin_weights(weights[index], thin)
+
+        mask = selected_weights > 0
+        samples = self[mask]
+        samples.set_weights(selected_weights[mask], inplace=True)
+        if inplace:
+            self._update_inplace(samples)
+        else:
+            return samples
 
     def Gelman_Rubin(self, params=None, per_param=False):
         """Gelman--Rubin convergence statistic of multiple MCMC chains.

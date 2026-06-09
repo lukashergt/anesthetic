@@ -1,8 +1,9 @@
 """Read MCMCSamples from Cobaya chains."""
+from itertools import compress, islice
 import os
 import re
 import numpy as np
-from anesthetic.samples import MCMCSamples, _compute_burn_in
+from anesthetic.samples import MCMCSamples, _compute_burn_in, _thin_weights
 
 
 def _count_samples(filename):
@@ -41,7 +42,7 @@ def read_paramnames(root):
             return paramnames, {}
 
 
-def read_cobaya(root, *args, burn_in=None, **kwargs):
+def read_cobaya(root, *args, burn_in=None, thin=None, **kwargs):
     """Read Cobaya yaml files.
 
     Note that in order to optimally read chains from Cobaya you need to have
@@ -57,6 +58,10 @@ def read_cobaya(root, *args, burn_in=None, **kwargs):
         Number or fraction of stored rows to remove from each chain before
         loading samples into memory. Uses the same semantics as
         :meth:`anesthetic.samples.MCMCSamples.remove_burn_in`.
+
+    thin : int, optional
+        Keep every ``thin``-th sample in the expanded MCMC chain represented
+        by the integer weights.
 
     Returns
     -------
@@ -85,21 +90,38 @@ def read_cobaya(root, *args, burn_in=None, **kwargs):
         ndrop = np.zeros(len(chain_lengths), dtype=int)
     else:
         ndrop = _compute_burn_in(burn_in, chain_lengths)
-    retained_lengths = chain_lengths - ndrop
-    nsamples = sum(retained_lengths)
+    selected_lengths = chain_lengths - ndrop
+    selected_weights = []
+    if thin is not None:
+        for j, ((_, chain_file), skip, selected) in enumerate(zip(
+                chain_files, ndrop, selected_lengths)):
+            selected_weights.append(_thin_weights(
+                np.loadtxt(
+                    chain_file, skiprows=skip+1, usecols=0, dtype=int, ndmin=1
+                ),
+                thin
+            ))
+            selected_lengths[j] = np.count_nonzero(selected_weights[-1])
+
+    nsamples = sum(selected_lengths)
     data = np.empty((nsamples, len(columns)))
     weights = np.empty(nsamples, dtype=int)
     minuslogP = np.empty(nsamples)
     chains = np.empty(nsamples, dtype=int)
 
     start = 0
-    for (i, chain_file), skip, retained in zip(
-            chain_files, ndrop, retained_lengths):
-        if retained == 0:
-            continue
-        chain_data = np.loadtxt(chain_file, skiprows=skip+1, ndmin=2)
-        stop = start + retained
-        weights[start:stop] = chain_data[:, 0]
+    for j, ((i, chain_file), skip, selected) in enumerate(zip(
+            chain_files, ndrop, selected_lengths)):
+        stop = start + selected
+        if thin is None:
+            chain_data = np.loadtxt(chain_file, skiprows=skip+1, ndmin=2)
+            weights[start:stop] = chain_data[:, 0]
+        else:
+            mask = selected_weights[j] > 0
+            with open(chain_file) as file:
+                lines = compress(islice(file, skip+1, None), mask)
+                chain_data = np.loadtxt(lines, ndmin=2)
+            weights[start:stop] = selected_weights[j][mask]
         minuslogP[start:stop] = chain_data[:, 1]
         data[start:stop] = chain_data[:, 2:]
         chains[start:stop] = int(i) if i else np.nan
