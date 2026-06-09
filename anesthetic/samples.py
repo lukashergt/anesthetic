@@ -477,6 +477,27 @@ class Samples(WeightedLabelledDataFrame):
     )
 
 
+def _compute_burn_in(burn_in, chain_lengths):
+    """Compute the number of leading rows to remove from each chain."""
+    nchains = len(chain_lengths)
+    if isinstance(burn_in, (int, float)):
+        ndrop = np.full(nchains, burn_in)
+    elif isinstance(burn_in, (list, tuple, np.ndarray)) \
+            and len(burn_in) == nchains:
+        ndrop = np.array(burn_in)
+    else:
+        raise ValueError("`burn_in` has to be a scalar or an array of "
+                         "length matching the number of chains "
+                         "`nchains=%d`. However, you provided "
+                         "`burn_in=%s`" % (nchains, burn_in))
+    if np.all(np.abs(ndrop) < 1):
+        ndrop = ndrop * chain_lengths
+    ndrop = ndrop.astype(int)
+    return np.where(ndrop < 0,
+                    np.maximum(chain_lengths + ndrop, 0),
+                    np.minimum(ndrop, chain_lengths))
+
+
 class MCMCSamples(Samples):
     """Storage and plotting tools for MCMC samples.
 
@@ -538,21 +559,8 @@ class MCMCSamples(Samples):
         """
         chains = self.groupby(('chain', '$n_\\mathrm{chain}$'), sort=False,
                               group_keys=False)
-        nchains = chains.ngroups
-        if isinstance(burn_in, (int, float)):
-            ndrop = np.full(nchains, burn_in)
-        elif isinstance(burn_in, (list, tuple, np.ndarray)) \
-                and len(burn_in) == nchains:
-            ndrop = np.array(burn_in)
-        else:
-            raise ValueError("`burn_in` has to be a scalar or an array of "
-                             "length matching the number of chains "
-                             "`nchains=%d`. However, you provided "
-                             "`burn_in=%s`" % (nchains, burn_in))
-        if np.all(np.abs(ndrop) < 1):
-            nsamples = chains.count().iloc[:, 0].to_numpy()
-            ndrop = ndrop * nsamples
-        ndrop = ndrop.astype(int)
+        chain_lengths = chains.count().iloc[:, 0]
+        ndrop = _compute_burn_in(burn_in, chain_lengths.to_numpy())
         data = self.drop(chains.apply(lambda g: g.head(ndrop[g.name-1]),
                                       include_groups=False).index,
                          inplace=inplace)

@@ -2,7 +2,7 @@
 import os
 import re
 import numpy as np
-from anesthetic.samples import MCMCSamples
+from anesthetic.samples import MCMCSamples, _compute_burn_in
 
 
 def _count_samples(filename):
@@ -41,7 +41,7 @@ def read_paramnames(root):
             return paramnames, {}
 
 
-def read_cobaya(root, *args, **kwargs):
+def read_cobaya(root, *args, burn_in=None, **kwargs):
     """Read Cobaya yaml files.
 
     Note that in order to optimally read chains from Cobaya you need to have
@@ -52,6 +52,11 @@ def read_cobaya(root, *args, **kwargs):
     root : str
         root name for reading files in Cobaya format, i.e. the files
         ``<root>.*.txt`` and ``<root>.updated.yaml``.
+
+    burn_in : int, float or array-like, optional
+        Number or fraction of stored rows to remove from each chain before
+        loading samples into memory. Uses the same semantics as
+        :meth:`anesthetic.samples.MCMCSamples.remove_burn_in`.
 
     Returns
     -------
@@ -74,17 +79,26 @@ def read_cobaya(root, *args, **kwargs):
     labels = kwargs.pop('labels', labels)
     kwargs['label'] = kwargs.get('label', os.path.basename(root))
 
-    chain_lengths = [_count_samples(file) for _, file in chain_files]
-    nsamples = sum(chain_lengths)
+    chain_lengths = np.array([_count_samples(file)
+                              for _, file in chain_files])
+    if burn_in is None:
+        ndrop = np.zeros(len(chain_lengths), dtype=int)
+    else:
+        ndrop = _compute_burn_in(burn_in, chain_lengths)
+    retained_lengths = chain_lengths - ndrop
+    nsamples = sum(retained_lengths)
     data = np.empty((nsamples, len(columns)))
     weights = np.empty(nsamples, dtype=int)
     minuslogP = np.empty(nsamples)
     chains = np.empty(nsamples, dtype=int)
 
     start = 0
-    for (i, chain_file), chain_length in zip(chain_files, chain_lengths):
-        chain_data = np.loadtxt(chain_file)
-        stop = start + chain_length
+    for (i, chain_file), skip, retained in zip(
+            chain_files, ndrop, retained_lengths):
+        if retained == 0:
+            continue
+        chain_data = np.loadtxt(chain_file, skiprows=skip+1, ndmin=2)
+        stop = start + retained
         weights[start:stop] = chain_data[:, 0]
         minuslogP[start:stop] = chain_data[:, 1]
         data[start:stop] = chain_data[:, 2:]
@@ -101,7 +115,7 @@ def read_cobaya(root, *args, **kwargs):
     samples.root = root
     samples.label = kwargs['label']
 
-    if np.all(samples.chain == samples.chain.iloc[0]):
+    if len(chain_files) == 1:
         samples.drop(columns='chain', inplace=True, level=0)
     else:
         samples.set_label('chain', r'$n_\mathrm{chain}$')
