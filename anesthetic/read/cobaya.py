@@ -3,7 +3,13 @@ import os
 import re
 import numpy as np
 from anesthetic.samples import MCMCSamples
-from pandas import concat
+
+
+def _count_samples(filename):
+    """Count samples in a Cobaya chain file."""
+    with open(filename) as f:
+        return sum(bool(line.strip()) and not line.lstrip().startswith('#')
+                   for line in f)
 
 
 def read_paramnames(root):
@@ -57,34 +63,41 @@ def read_cobaya(root, *args, **kwargs):
     files = os.listdir(os.path.dirname(root))
     regex = re.escape(basename) + r'.([0-9]+)\.txt'
     matches = [re.match(regex, f) for f in files]
-    chains_files = [(m.group(1), os.path.join(dirname, m.group(0)))
-                    for m in matches if m]
-    if not chains_files:
+    chain_files = [(m.group(1), os.path.join(dirname, m.group(0)))
+                   for m in matches if m]
+    if not chain_files:
         raise FileNotFoundError(dirname + '/' + regex + " not found.")
+    chain_files.sort(key=lambda chain_file: int(chain_file[0]))
 
     columns, labels = read_paramnames(root)
     columns = kwargs.pop('columns', columns)
     labels = kwargs.pop('labels', labels)
     kwargs['label'] = kwargs.get('label', os.path.basename(root))
 
-    samples = []
-    for i, chains_file in chains_files:
-        data = np.loadtxt(chains_file)
-        weights, minuslogP, data = np.split(data, [1, 2], axis=1)
-        mcmc = MCMCSamples(data=data, columns=columns,
-                           weights=weights.flatten(),
-                           labels=labels, *args, **kwargs)
-        mcmc['logP'] = -minuslogP
-        mcmc.set_label('logP', '$\\ln\\mathcal{P}$')
-        mcmc['logL'] = -mcmc['chi2'] / 2
-        mcmc.set_label('logL', '$\\ln\\mathcal{L}$')
-        mcmc['chain'] = int(i) if i else np.nan
-        samples.append(mcmc)
+    chain_lengths = [_count_samples(file) for _, file in chain_files]
+    nsamples = sum(chain_lengths)
+    data = np.empty((nsamples, len(columns)))
+    weights = np.empty(nsamples, dtype=int)
+    minuslogP = np.empty(nsamples)
+    chains = np.empty(nsamples, dtype=int)
 
-    samples = concat(samples)
-    samples.index.names = ['index', 'weights']
-    samples.sort_values(by=['chain', 'index'], inplace=True)
-    samples.reset_index(inplace=True, drop=True)
+    start = 0
+    for (i, chain_file), chain_length in zip(chain_files, chain_lengths):
+        chain_data = np.loadtxt(chain_file)
+        stop = start + chain_length
+        weights[start:stop] = chain_data[:, 0]
+        minuslogP[start:stop] = chain_data[:, 1]
+        data[start:stop] = chain_data[:, 2:]
+        chains[start:stop] = int(i) if i else np.nan
+        start = stop
+
+    samples = MCMCSamples(data=data, columns=columns, weights=weights,
+                          labels=labels, *args, **kwargs)
+    samples['logP'] = -minuslogP
+    samples.set_label('logP', '$\\ln\\mathcal{P}$')
+    samples['logL'] = -samples['chi2'] / 2
+    samples.set_label('logL', '$\\ln\\mathcal{L}$')
+    samples['chain'] = chains
     samples.root = root
     samples.label = kwargs['label']
 
