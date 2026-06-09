@@ -112,12 +112,8 @@ def read_cobaya(root, *args, burn_in=None, **kwargs):
     samples['logL'] = -samples['chi2'] / 2
     samples.set_label('logL', '$\\ln\\mathcal{L}$')
     samples['chain'] = chains
+    samples.set_label('chain', r'$n_\mathrm{chain}$')
     samples.root = root
     samples.label = kwargs['label']
-
-    if len(chain_files) == 1:
-        samples.drop(columns='chain', inplace=True, level=0)
-    else:
-        samples.set_label('chain', r'$n_\mathrm{chain}$')
 
     return samples

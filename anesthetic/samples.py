@@ -560,8 +560,11 @@ class MCMCSamples(Samples):
         chains = self.groupby(('chain', '$n_\\mathrm{chain}$'), sort=False,
                               group_keys=False)
         chain_lengths = chains.count().iloc[:, 0]
-        ndrop = _compute_burn_in(burn_in, chain_lengths.to_numpy())
-        data = self.drop(chains.apply(lambda g: g.head(ndrop[g.name-1]),
+        ndrop = dict(zip(
+            chain_lengths.index,
+            _compute_burn_in(burn_in, chain_lengths.to_numpy())
+        ))
+        data = self.drop(chains.apply(lambda g: g.head(ndrop[g.name]),
                                       include_groups=False).index,
                          inplace=inplace)
         if reset_index:
