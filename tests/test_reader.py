@@ -7,7 +7,7 @@ from numpy.testing import assert_array_equal, assert_array_almost_equal
 import matplotlib.pyplot as plt
 from anesthetic.testing import assert_frame_equal
 from anesthetic import MCMCSamples, NestedSamples
-from anesthetic import read_chains
+from anesthetic import read_chains, read_parameters
 from anesthetic.read.polychord import read_polychord
 from anesthetic.read.getdist import read_getdist
 from anesthetic.read.cobaya import read_cobaya
@@ -24,6 +24,32 @@ import io
 def close_figures_on_teardown():
     yield
     plt.close("all")
+
+
+@pytest.mark.parametrize('root', ['gd', 'pc', 'mn'])
+def test_read_parameters_getdist(root):
+    parameters = read_parameters(Path('./tests/example_data') / root)
+    assert parameters == ['x0', 'x1', 'x2', 'x3', 'x4']
+
+
+def test_read_parameters_cobaya():
+    parameters = read_parameters('./tests/example_data/cb')
+    assert parameters == ['x0', 'x1', 'minuslogprior', 'minuslogprior__0',
+                          'chi2', 'chi2__norm']
+
+
+def test_read_parameters_fail():
+    with pytest.raises(FileNotFoundError):
+        read_parameters('./tests/example_data/foo')
+
+
+def test_read_parameters_falls_back_to_getdist_for_numeric_header(tmp_path):
+    root = tmp_path / 'chain'
+    # GetDist accepts <root>.1.txt as well as <root>_1.txt, which overlaps
+    # Cobaya's naming convention. Its numeric first row is not a Cobaya header.
+    root.with_suffix('.1.txt').write_text('1 2 3 4\n')
+    root.with_suffix('.paramnames').write_text('x0 x_0\nx1 x_1\n')
+    assert read_parameters(root) == ['x0', 'x1']
 
 
 def test_read_getdist():
@@ -106,6 +132,49 @@ def test_read_cobayamcmc():
         # `minuslogposterior`. Hence, the following slightly confusing asserts.
         assert_array_almost_equal(mcmc.logP, -g.loglikes, decimal=15)
         assert_array_almost_equal(mcmc.logL, -g.getParams().chi2/2, decimal=15)
+
+
+@pytest.mark.parametrize(('columns', 'parameters'), [
+    ('x0', ['x0']),                    # scalar name
+    (0, ['x0']),                       # scalar index
+    (np.int64(0), ['x0']),             # scalar numpy index
+    (['x1', 'x0'], ['x1', 'x0']),      # reordered names
+    ([1, 0], ['x1', 'x0']),            # reordered indices
+    (np.int32([1, 0]), ['x1', 'x0']),  # reordered numpy indices
+    (['x0', 'x0'], ['x0', 'x0']),      # repeated names
+    ([0, 0], ['x0', 'x0']),            # repeated indices
+    (slice(0, 2), ['x0', 'x1']),       # slice
+    (['chi2'], ['chi2']),              # explicitly selected chi2
+    ([-5], ['x1']),                    # negative index
+    ([], []),                          # empty selection
+])
+def test_read_cobaya_columns(columns, parameters):
+    root = './tests/example_data/cb'
+    if 'chi2' not in parameters:
+        parameters = parameters + ['chi2']
+    expected = read_chains(root)[parameters + ['logP', 'logL', 'chain']]
+    selected = read_chains(root, columns=columns)
+    assert_frame_equal(selected, expected)
+
+
+def test_read_cobaya_columns_with_burn_in_and_thin():
+    root = './tests/example_data/cb'
+    params = ['x0', 'chi2', 'logP', 'logL', 'chain']
+    expected = read_chains(root, burn_in=0.5, thin=2)[params]
+    selected = read_chains(root, burn_in=0.5, thin=2, columns=['x0'])
+    assert_frame_equal(selected, expected)
+
+
+@pytest.mark.parametrize(('columns', 'error'), [
+    (['x0', 'missing'], KeyError),      # unknown name
+    ([0, 10], IndexError),              # out-of-range index
+    ([True, False, False], TypeError),  # boolean input
+    (1.5, TypeError),                   # unsupported scalar
+    ([0, 'x1'], TypeError),             # mixed selector types
+])
+def test_read_cobaya_columns_invalid(columns, error):
+    with pytest.raises(error):
+        read_cobaya('./tests/example_data/cb', columns=columns)
 
 
 def test_read_montepython():
@@ -288,9 +357,9 @@ def test_read_blackjax():
     assert np.isnan(bj.logL_birth[0])
 
 
-@pytest.mark.parametrize('root', ['gd', 'cb'])
+@pytest.mark.parametrize('root', ['gd'])
 def test_discard_burn_in(root):
-    with pytest.raises(KeyError):
+    with pytest.raises(TypeError):
         read_chains('./tests/example_data/' + root, burn_in=0.3)
 
 

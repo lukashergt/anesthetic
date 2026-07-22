@@ -20,6 +20,16 @@ If you have finished nested sampling or MCMC runs from one of:
 then you should be able to read in the chain files directly, by passing the
 ``root`` to the :func:`anesthetic.read.chain.read_chains` function.
 
+You can inspect the available parameters without loading the numerical samples
+using :func:`anesthetic.read.chain.read_parameters`. This supports Cobaya chain
+headers and GetDist-style ``.paramnames`` metadata, including metadata written
+by PolyChord and MultiNest:
+
+::
+
+    from anesthetic import read_parameters
+    parameters = read_parameters("anesthetic/tests/example_data/cb")
+
 Feel free to use the testing data in ``anesthetic/tests/example_data`` to try
 out the examples listed here.
 
@@ -54,6 +64,16 @@ out the examples listed here.
       
       from anesthetic import read_chains
       samples = read_chains("anesthetic/tests/example_data/cb").remove_burn_in(burn_in=0.1)
+
+  Pass parameter names to ``columns`` to avoid loading unneeded columns into
+  memory. Lists of integer positions and slices index the names returned by
+  :func:`anesthetic.read.chain.read_parameters`. Weights, ``chi2``, and the
+  generated ``logP``, ``logL``, and ``chain`` columns are included
+  automatically:
+
+  ::
+
+      samples = read_chains("anesthetic/tests/example_data/cb", columns=["x0", "x1"])
 
 
 .. _passing data:
