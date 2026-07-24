@@ -10,9 +10,30 @@ from anesthetic.samples import (MCMCSamples, _compute_burn_in, _thin_weights,
 
 def _count_samples(filename):
     """Count samples in a Cobaya chain file."""
-    with open(filename) as f:
+    with open(filename, 'rb') as file:
+        header = file.readline()
+        first = file.readline()
+        if not first:
+            return 0
+
+        row_size = len(first)
+        data_size = os.fstat(file.fileno()).st_size - len(header)
+        nrows, remainder = divmod(data_size, row_size)
+
+        # Cobaya writes fixed-width rows, so the file size usually suffices.
+        if remainder == 0:
+            for i in {0, nrows // 2, nrows - 1}:
+                file.seek(len(header) + i * row_size)
+                row = file.read(row_size)
+                if row.count(b'\n') != 1 or not row.endswith(b'\n'):
+                    break
+            else:
+                return nrows
+
+    # Fall back to checking each row for non-standard Cobaya files.
+    with open(filename) as file:
         return sum(bool(line.strip()) and not line.lstrip().startswith('#')
-                   for line in f)
+                   for line in file)
 
 
 def read_paramnames(root):
@@ -199,7 +220,7 @@ def read_cobaya(root, *args, columns=None, burn_in=None, thin=None,
     if not compress_consecutive_duplicates:
         samples['logP'] = -minuslogP
         samples.set_label('logP', '$\\ln\\mathcal{P}$')
-        samples['logL'] = -samples['chi2'] / 2
+        samples['logL'] = -data[:, columns.index('chi2')] / 2
         samples.set_label('logL', '$\\ln\\mathcal{L}$')
     samples['chain'] = chains
     samples.set_label('chain', r'$n_\mathrm{chain}$')
