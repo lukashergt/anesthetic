@@ -923,6 +923,13 @@ def kde_plot_1d(ax, data, *args, **kwargs):
         :class:`scipy.stats.gaussian_kde`. A value greater 1 will smooth more,
         a value smaller 1 will smooth less.
 
+    clip_to_zero : bool, default=True
+        If True, force the curve to zero just outside ``data.min()`` and
+        ``data.max()`` (whenever they fall inside the plotting ranges
+        ``xlim = (xmin, xmax)``), closing it cleanly at the support edges.
+        If False, the curve is sampled only on the regular grid and may end
+        mid-air at the data limits.
+
     Returns
     -------
     lines : :class:`matplotlib.lines.Line2D`
@@ -967,9 +974,10 @@ def kde_plot_1d(ax, data, *args, **kwargs):
     xmin = quantile(data, q[0], weights)
     xmax = quantile(data, q[-1], weights)
     x = np.linspace(xmin, xmax, nplot)
-    for edge, direction in [(data.min(), -np.inf), (data.max(), np.inf)]:
-        if xmin <= edge <= xmax:
-            x = np.union1d(x, [np.nextafter(edge, direction)])
+    if kwargs.pop('clip_to_zero', True):
+        for edge, direction in [(data.min(), -np.inf), (data.max(), np.inf)]:
+            if xmin <= edge <= xmax:
+                x = np.union1d(x, [np.nextafter(edge, direction)])
 
     data_compressed, w = sample_compression_1d(data, weights, ncompress)
     kde = gaussian_kde(data_compressed, weights=w, bw_method=bw_method)
@@ -1324,7 +1332,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, *args, **kwargs):
 
     # Regularise degenerate input (collinear or constant data) by injecting
     # small noise so that the covariance is positive-definite for Cholesky
-    # decomposition in scaled_triangulation and gaussian_kde.
+    # decomposition in triangular_sample_compression_2d and gaussian_kde.
     cov = np.cov(data_x, data_y, aweights=weights)
     (var_x, cov_xy), (cov_yx, var_y) = cov
     corr = 0 if var_x <= 0 or var_y <= 0 else abs(cov_xy)/np.sqrt(var_x*var_y)
@@ -1667,8 +1675,8 @@ def _plot_window(ax, axis):
     raise ValueError(
         f"Cannot plot KDE contours: the {axis}-axis variable has zero "
         f"variance and no axis limits are set. Call `ax.set_{axis}lim(...)` "
-        f"on the " f"corresponding axis before (and not again after!) "
-        f"plotting to define the display range."
+        f"on the corresponding axis before (and not again after!) plotting to "
+        f"define the display range."
     )
 
 
