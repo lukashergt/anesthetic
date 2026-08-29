@@ -321,6 +321,7 @@ class Samples(WeightedLabelledDataFrame):
             * ``int``: q-sigma range, e.g. ``q=1``: quantile range (0.16, 0.84)
             * ``float``: percentile, e.g. ``q=0.8``: quantile range (0.1, 0.9)
             * ``tuple``: custom quantile range, e.g. (0.16, 0.84)
+            * ``tuple of tuples``: per-axis quantiles, e.g. ((0, 0.9), (0, 1))
 
         density : bool, default=False
             For 1D plots (``kde_1d`` or ``hist_1d``):

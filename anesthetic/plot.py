@@ -1311,6 +1311,7 @@ def kde_contour_plot_2d(ax, data_x, data_y, weights=None, *args, q=5,
         * ``int``: q-sigma range, e.g. ``q=1`` --> quantile range (0.16, 0.84)
         * ``float``: percentile, e.g. ``q=0.8`` --> quantile range (0.1, 0.9)
         * ``tuple``: custom quantile range, e.g. (0.16, 0.84)
+        * ``tuple of tuples``: per-axis quantiles, e.g. ((0, 0.9), (0.1, 1))
 
     levels : array-like, default=(0.95, 0.68)
         List of probability masses enclosed by iso-probability contours.
@@ -1330,27 +1331,8 @@ def kde_contour_plot_2d(ax, data_x, data_y, weights=None, *args, q=5,
           effective samples in :func:`anesthetic.utils.neff`
           with ``beta=ncompress``.
 
-    q, qx, qy : int or float or tuple, default=5
-        Quantile(s) to determine the data range to be plotted.
-        The quantiles `qx` and `qy` in x- and y-direction, respectively, are
-        by default the same and grouped as `q`, but can optionally be
-        specified separately.
-
-        * ``0``: full data range, i.e. ``q=0`` --> quantile range (0, 1)
-        * ``int``: q-sigma range, e.g. ``q=1`` --> quantile range (0.16, 0.84)
-        * ``float``: percentile, e.g. ``q=0.8`` --> quantile range (0.1, 0.9)
-        * ``tuple``: quantile range, e.g. (0.16, 0.84)
-
     ngrid_kde : int, default=1000
         Number of grid points where the KDE is being evaluated.
-
-    bw_method : str, scalar or callable, optional
-        Forwarded to :class:`scipy.stats.gaussian_kde`.
-
-    bw_scale : float, default=1
-        Scales the bandwidth relative to the automatically computed one by
-        :class:`scipy.stats.gaussian_kde`. A value greater 1 will smooth more,
-        a value smaller 1 will smooth less.
 
     grid_angle : float or (float, float), optional
         Manual orientation of the plotting grid, in degrees measured
@@ -1450,9 +1432,13 @@ def kde_contour_plot_2d(ax, data_x, data_y, weights=None, *args, q=5,
         data_y = data_y.copy() + noise * evecs[1, 0]
         cov = np.cov(data_x, data_y, aweights=weights)
 
-    q = quantile_plot_interval(q=q)
-    qx = kwargs.pop('qx', q)
-    qy = kwargs.pop('qy', q)
+    if isinstance(q, (tuple, list, np.ndarray)) and len(np.ravel(q)) == 4:
+        q = np.ravel(q)
+        qx = q[:2]
+        qy = q[2:]
+    else:
+        qx = q
+        qy = q
     qx = quantile_plot_interval(q=qx)
     qy = quantile_plot_interval(q=qy)
     xmin = quantile(data_x, qx[0], weights)
