@@ -624,13 +624,15 @@ def _thin_weights(weights, thin):
     """Thin integer frequency weights without expanding the samples."""
     if not isinstance(thin, (int, np.integer)) or thin < 1:
         raise ValueError("`thin` must be a positive integer.")
+    if not np.all(weights == np.floor(weights)):
+        raise ValueError("Thinning requires integer frequency weights.")
     end = np.cumsum(weights)
     start = end - weights
     return (end - 1) // thin - (start - 1) // thin
 
 
-def _compress_consecutive_duplicates(data, weights):
-    """Find consecutive duplicate rows and sum their weights."""
+def _compress_repeats(data, weights):
+    """Find consecutive repeated rows and sum their weights."""
     if len(data) < 2:
         return np.arange(len(data)), weights.copy()
 
@@ -713,11 +715,15 @@ class MCMCSamples(Samples):
         data = self.drop(chains.apply(lambda g: g.head(ndrop[g.name]),
                                       include_groups=False).index,
                          inplace=inplace)
+        if inplace:
+            if reset_index:
+                self.reset_index(drop=True, inplace=True)
+            return None
         if reset_index:
-            data = data.reset_index(drop=True, inplace=inplace)
+            data.reset_index(drop=True, inplace=True)
         return data
 
-    def thin(self, thin, inplace=False):
+    def thin(self, thin, reset_index=False, inplace=False):
         """Thin each MCMC chain, accounting for integer frequency weights.
 
         Parameters
@@ -727,11 +733,16 @@ class MCMCSamples(Samples):
             represented by the integer weights. ``None`` leaves the samples
             unthinned.
 
+        reset_index : bool, default=False
+            Whether to reset the index counter to start at zero or not.
+
         inplace : bool, default=False
             Indicates whether to modify the existing array or return a copy.
 
         """
         if thin is None:
+            if reset_index:
+                return self.reset_index(drop=True, inplace=inplace)
             return None if inplace else self.copy()
 
         weights = self.get_weights()
@@ -743,12 +754,14 @@ class MCMCSamples(Samples):
         mask = selected_weights > 0
         samples = self[mask]
         samples.set_weights(selected_weights[mask], inplace=True)
+        if reset_index:
+            samples.reset_index(drop=True, inplace=True)
         if inplace:
             self._update_inplace(samples)
         else:
             return samples
 
-    def compress_consecutive_duplicates(self, inplace=False):
+    def compress_repeats(self, inplace=False):
         """Merge consecutive duplicate rows by summing their weights.
 
         Oversampling nuisance parameters can leave selected parameters of
@@ -768,9 +781,8 @@ class MCMCSamples(Samples):
             Compressed samples, or ``None`` if ``inplace=True``.
 
         """
-        indices, weights = _compress_consecutive_duplicates(
-            self.to_numpy(), self.get_weights()
-        )
+        indices, weights = _compress_repeats(self.to_numpy(),
+                                             self.get_weights())
         samples = self.iloc[indices]
         samples.set_weights(weights, inplace=True)
         if inplace:

@@ -1,23 +1,15 @@
 """Read MCMCSamples or NestedSamples from any chains."""
 from anesthetic.read.polychord import read_polychord
-from anesthetic.read.getdist import (
-    read_getdist, read_paramnames as read_getdist_paramnames
-)
-from anesthetic.read.cobaya import (
-    read_cobaya, read_paramnames as read_cobaya_paramnames
-)
+from anesthetic.read.getdist import read_getdist, read_getdist_paramnames
+from anesthetic.read.cobaya import read_cobaya, read_cobaya_paramnames
 from anesthetic.read.multinest import read_multinest
-from anesthetic.read.ultranest import read_ultranest
-from anesthetic.read.nestedfit import read_nestedfit
+from anesthetic.read.ultranest import read_ultranest, read_ultranest_paramnames
+from anesthetic.read.nestedfit import read_nestedfit, read_nestedfit_paramnames
 from anesthetic.read.csv import read_csv
 
 
-def read_parameters(root):
-    """Read parameter names without loading samples into memory.
-
-    Parameter discovery is supported for Cobaya chain headers and GetDist
-    ``.paramnames`` files. The latter also covers formats such as PolyChord
-    and MultiNest that use GetDist parameter metadata.
+def read_paramnames(root):
+    """Read parameter names and labels without loading full chains.
 
     Parameters
     ----------
@@ -26,18 +18,19 @@ def read_parameters(root):
 
     Returns
     -------
-    list of str
-        Parameter names in file order, excluding sampler bookkeeping columns.
+    parameters : list[str] or list[int]
+        Parameter names in file order, excluding sampler bookkeeping fields.
+    labels : dict
+        Mapping from parameter names to axis labels.
 
     """
     root = str(root)
     errors = []
-    readers = [read_cobaya_paramnames, read_getdist_paramnames]
+    readers = [read_cobaya_paramnames, read_getdist_paramnames,
+               read_nestedfit_paramnames, read_ultranest_paramnames]
     for read in readers:
         try:
-            parameters, _ = read(root)
-            if parameters is not None:
-                return parameters
+            return read(root)
         except (FileNotFoundError, IOError) as error:
             errors.append(str(read) + ": " + str(error))
 
@@ -59,31 +52,45 @@ def read_chains(root, *args, **kwargs):
         * anything `GetDist <https://github.com/cmbant/getdist>`_ compatible,
         * files produced using ``DataFrame.to_csv()`` from anesthetic.
 
-    Note that in order to optimally read chains from Cobaya you need to have
-    `GetDist <https://getdist.readthedocs.io/en/latest/>`__ installed.
+    When installed, `GetDist <https://getdist.readthedocs.io/en/latest/>`__
+    is used to read parameter labels from Cobaya's YAML metadata.
 
     Parameters
     ----------
     root : str, pathlib.Path
-        root name for reading files
+        Root name for reading chain files.
 
     columns : list[str], list[int], or slice, optional
-        For Cobaya chains, optionally select which parameter columns to load
-        from the chain files. This is useful when you do not want to load a
-        large number of nuisance parameters into memory. Integer positions and
-        slices index the parameter names returned by :func:`read_parameters`.
+        Optionally select which parameter columns to load from the chain files.
+        This is useful when you do not want to load a large number of nuisance
+        parameters into memory. Integer positions and slices index parameter
+        fields only, not sampler bookkeeping fields such as ``logL``.
 
-    compress_consecutive_duplicates : bool, default=False
-        For Cobaya chains, oversampling nuisance parameters can leave the
-        selected parameters of interest unchanged across consecutive samples.
-        Merge these repeated rows by summing their weights. This happens after
-        read-time burn-in removal and thinning, and separately for each chain.
-        If ``False``, ``chi2`` is loaded and ``logP`` and ``logL`` are
-        calculated in addition to the selected columns. If ``True``, only the
-        selected columns and ``chain`` are returned. Weights are always
-        retained.
+    renames : dict, optional
+        Mapping from parameter names to new names.
 
-    *args, **kwargs:
+    burn_in : int, float or array-like, optional
+        For Cobaya and GetDist MCMC chains:
+        Number or fraction of stored rows to remove from each chain before
+        loading samples into memory. Uses the same semantics as
+        :meth:`anesthetic.samples.MCMCSamples.remove_burn_in`.
+
+    thin : int, optional
+        For Cobaya and GetDist MCMC chains:
+        Keep every ``thin``-th sample in the expanded MCMC chain represented
+        by the frequency weights.
+
+    compress_repeats : bool, default=False
+        For Cobaya and GetDist MCMC chains:
+        Oversampling nuisance parameters can leave the selected parameters of
+        interest unchanged across consecutive samples. Merge these repeated
+        rows by summing their weights. Compression happens separately for each
+        chain, after burn-in removal and thinning. If ``False``, likelihood
+        bookkeeping fields such as ``logL`` are returned in addition to the
+        selected columns. If ``True``, only the selected columns and ``chain``
+        are returned. Weights are always retained.
+
+    *args, **kwargs
         Passed on to ``NestedSamples`` or ``MCMCSamples``. Check their
         docstrings for more information.
 
