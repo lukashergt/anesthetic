@@ -28,7 +28,9 @@ def read_nestedfit(root, *args, columns=None, renames=None, **kwargs):
         fields only, not sampler bookkeeping fields such as ``logL``.
 
     renames : dict, optional
-        Mapping from parameter names to new names.
+        Mapping from parameter names to new names (i.e. column handles).
+        Labels are not carried over to renamed parameters, so provide them
+        separately via a ``labels`` dict with the new parameter names as keys.
 
     *args, **kwargs
         Passed on to ``NestedSamples``. Check its docstring for more
@@ -56,7 +58,6 @@ def read_nestedfit(root, *args, columns=None, renames=None, **kwargs):
     # Nested_fit does not provide separate parameter labels.
     labels = kwargs.pop('labels', columns)
     kwargs['label'] = kwargs.get('label', os.path.basename(root))
-    columns = [renames.get(column, column) for column in columns]
 
     samples = NestedSamples(data=data, columns=columns,
                             logL=logL, logL_birth=logL_birth,
