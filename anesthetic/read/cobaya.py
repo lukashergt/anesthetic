@@ -144,7 +144,8 @@ def read_cobaya(root, *args, columns=None, renames=None, burn_in=None,
     data, columns, weights, minuslogP, chains, renames = _read_mcmc_chains(
         chain_files, parameters, columns, _count_samples,
         header_rows=1, burn_in=burn_in, thin=thin,
-        compress_repeats=compress_repeats, renames=renames
+        compress_repeats=compress_repeats, renames=renames,
+        max_rows=kwargs.pop('max_rows', None),
     )
     logL = None if compress_repeats else -data[:, columns.index('chi2')] / 2
 

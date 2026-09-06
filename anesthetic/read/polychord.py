@@ -46,7 +46,8 @@ def read_polychord(root, *args, columns=None, renames=None, **kwargs):
 
     data = np.loadtxt(dead_birth_file, usecols=usecols, ndmin=2)
     try:
-        _data = np.loadtxt(phys_live_birth_file, usecols=usecols, ndmin=2)
+        _data = np.loadtxt(phys_live_birth_file, usecols=usecols, ndmin=2,
+                           max_rows=kwargs.pop('max_rows', None))
         data = np.concatenate([data, _data]) if _data.size else data
         data = np.unique(data, axis=0)
         i = np.argsort(data[:, -2])

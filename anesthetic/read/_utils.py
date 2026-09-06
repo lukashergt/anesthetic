@@ -88,7 +88,7 @@ def _infer_weight_dtype(weights):
 
 def _read_mcmc_chains(chain_files, parameters, columns, count_samples,
                       header_rows=0, burn_in=None, thin=None,
-                      compress_repeats=False, renames=None):
+                      compress_repeats=False, renames=None, **kwargs):
     """Load selected columns from one or more weighted MCMC chain files."""
     nparams = len(parameters)
     indices, columns, renames = _norm_columns(columns, parameters, renames)
@@ -122,7 +122,8 @@ def _read_mcmc_chains(chain_files, parameters, columns, count_samples,
                 chain_files, nskip, selected_lengths
         )):
             selected_weights.append(_thin_weights(
-                np.loadtxt(chain_file, skiprows=skiprows, usecols=0, ndmin=1),
+                np.loadtxt(chain_file, skiprows=skiprows, usecols=0, ndmin=1,
+                           **kwargs),
                 thin,
             ))
             selected_lengths[j] = np.count_nonzero(selected_weights[-1])
